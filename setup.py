@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="ASFIN",
+    name="ASFINT",
     version="0.1",
     packages=find_packages(),  # Automatically detects your package folders
     install_requires=[

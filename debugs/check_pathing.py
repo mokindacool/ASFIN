@@ -4,9 +4,9 @@ import sys
 import sys
 print(f"Sys path: {sys.path}")
 
-from ASFIN.Transform import ABSA_Processor, Agenda_Processor, OASIS_Abridged, FR_ProcessorV2]
-import ASFIN.Utility.Cleaning as cl
-import ASFIN.Utility.Utils as ut
+from ASFINT.Transform import ABSA_Processor, Agenda_Processor, OASIS_Abridged, FR_ProcessorV2
+import ASFINT.Utility.Cleaning as cl
+import ASFINT.Utility.Utils as ut
 
 print(f"Utils Func: {ut.heading_finder}")
 print(f"Cleaning Func: {cl.is_type}")
