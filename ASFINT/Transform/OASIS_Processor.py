@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
 
-from ASFIN.Utility.Cleaning import in_df
-from ASFIN.Utility.Utils import column_converter, heading_finder, column_renamer
+from ASFINT.Utility.Cleaning import in_df
+from ASFINT.Utility.Utils import column_converter, heading_finder, column_renamer
 
 def _year_adder(df_list, year_list, year_rank):
         #private

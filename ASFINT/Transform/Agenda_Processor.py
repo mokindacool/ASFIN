@@ -3,8 +3,8 @@ import pandas as pd
 import re
 from datetime import datetime
 
-from ASFIN.Utility.Cleaning import in_df, is_type
-from ASFIN.Utility.Utils import column_converter
+from ASFINT.Utility.Cleaning import in_df, is_type
+from ASFINT.Utility.Utils import column_converter
 
 def _find_chunk_pattern(starts, ends, end_prepattern = '\d\.\s'):
       """

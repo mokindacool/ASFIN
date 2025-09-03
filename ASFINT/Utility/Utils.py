@@ -7,7 +7,7 @@ from typing import Dict, Any
 from sklearn.metrics.pairwise import cosine_similarity 
 # from rapidfuzz import fuzz, process
 
-from ASFIN.Utility.Cleaning import is_type, in_df, any_in_df, is_valid_iter, any_drop
+from ASFINT.Utility.Cleaning import is_type, in_df, any_in_df, is_valid_iter, any_drop
 
 def column_converter(df:pd.DataFrame, 
                     dict: Dict = None, 

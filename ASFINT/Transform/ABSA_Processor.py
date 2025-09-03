@@ -3,8 +3,8 @@ import pandas as pd
 
 # full path should be the way as long as: 
 
-from ASFIN.Utility.Utils import heading_finder
-from ASFIN.Utility.Cleaning import is_type
+from ASFINT.Utility.Utils import heading_finder
+from ASFINT.Utility.Cleaning import is_type
 
 def _dropper(instance, dictionary):
     """

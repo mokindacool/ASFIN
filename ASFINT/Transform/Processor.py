@@ -1,9 +1,9 @@
 import pandas as pd
 from typing import Callable, Tuple, List
 import re
-from ASFIN.Utility.Cleaning import is_type
-from ASFIN.Utility.Logger_Utils import get_logger
-from ASFIN.Transform import ABSA_Processor, Agenda_Processor, OASIS_Abridged, FR_ProcessorV2
+from ASFINT.Utility.Cleaning import is_type
+from ASFINT.Utility.Logger_Utils import get_logger
+from ASFINT.Transform import ABSA_Processor, Agenda_Processor, OASIS_Abridged, FR_ProcessorV2
 
 class ASUCProcessor:
     """Wrapper class for processors. Specify the file type (eg. ABSA) then the __call__ method executes the appropriate processing function, outputting the result.

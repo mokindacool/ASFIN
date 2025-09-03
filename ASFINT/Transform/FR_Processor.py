@@ -2,8 +2,8 @@ import pandas as pd
 import re
 from datetime import datetime
 import argparse
-from ASFIN.Utility.Utils import heading_finder
-from ASFIN.Utility.Cleaning import in_df
+from ASFINT.Utility.Utils import heading_finder
+from ASFINT.Utility.Cleaning import in_df
 
 def FR_Helper(df, given_start = 'Appx', start_col = 0, adding_end_keyword='END', end_col = 0, alphabet=None, nth_occurence = 1, reporting=False) -> pd.DataFrame:
     """
