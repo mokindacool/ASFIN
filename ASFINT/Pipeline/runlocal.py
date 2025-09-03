@@ -21,3 +21,10 @@ def process(files: Iterable, process_type: str):
     Calls ASUCProcessor to process a list of files
     """
     pass
+
+# --------
+# run function that wraps everything together
+# --------
+
+def run(pull_path: str, push_path: str, process_type: str):
+    pass
