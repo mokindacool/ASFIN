@@ -1,5 +1,5 @@
 import pandas as pd
-from typing import Callable, Tuple, List
+from typing import Callable, Tuple, List, Iterable
 import re
 from ASFINT.Utility.Cleaning import is_type
 from ASFINT.Utility.Logger_Utils import get_logger
@@ -43,6 +43,7 @@ class ASUCProcessor:
             'CONTINGENCY': self.contingency,
             'OASIS': self.oasis, 
             'FR': self.fr, 
+            'FICCOMBINE': self.ficomm_merge
         }
         if self.type not in self.processors:
             raise ValueError(f"Invalid process type '{self.type}'")
