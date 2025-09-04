@@ -52,7 +52,8 @@ PROCESS_TYPES = {
 }
 
 def get_pFuncs(process_type: str, func: str) -> Callable: 
-    if process_type.strip().upper() in PROCESS_TYPES: 
+    process_type = process_type.strip().upper()
+    if process_type in PROCESS_TYPES: 
         fields = PROCESS_TYPES[process_type]
         func = fields.get(func.strip().lower(), None)
         if func is None:
@@ -60,10 +61,11 @@ def get_pFuncs(process_type: str, func: str) -> Callable:
         else:
             return func
     else:
-        raise ValueError(f"Inputted process type '{process_type}' not supported, select from: '{process_type.keys()}'")
+        raise ValueError(f"Inputted process type '{process_type}' not supported, select from: '{list(PROCESS_TYPES.keys())}'")
     
 def get_naming(process_type: str, tag: str):
-    if process_type.strip().upper() in PROCESS_TYPES: 
+    process_type = process_type.strip().upper()
+    if process_type in PROCESS_TYPES: 
         fields = PROCESS_TYPES[process_type]['naming']
         namingConvention = fields.get(tag.strip().lower(), None)
         if namingConvention is None:
@@ -71,4 +73,4 @@ def get_naming(process_type: str, tag: str):
         else:
             return namingConvention
     else:
-        raise ValueError(f"Inputted process type '{process_type}' not supported, select from: '{process_type.keys()}'")
+        raise ValueError(f"Inputted process type '{process_type}' not supported, select from: '{list(PROCESS_TYPES.keys())}'")
