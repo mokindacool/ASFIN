@@ -5,6 +5,7 @@ import pandas as pd
 import argparse
 
 from ASFINT.Config.config import get_pFuncs
+from ASFINT.Utility.Utils import ensure_folder
 
 # ---------
 # Pull, Push and Process functions
@@ -84,29 +85,3 @@ def run(pull_path: str, push_path: str, process_type: str):
     raw_dict = pull(path=pull_path, process_type=process_type)
     clean_dict = process(files=raw_dict, process_type=process_type)
     push(dfs=clean_dict, path=push_path, process_type=process_type)
-
-def main(manual=None, args=None):
-    if manual is not None:
-        # Programmatic call, no CLI parsing
-        run(
-            pull_path=manual.get('pullPath'), 
-            push_path=manual.get('pushPath'), 
-            process_type=manual.get('processType'),
-        )
-        return
-    
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--processType", type=str, required=True)
-    parser.add_argument("--pullPath", type=str, required=True)
-    parser.add_argument("--pushPath", type=str, required=True)
-
-    parsed_args = parser.parse_args(args)
-
-    run(
-        pull_path=parsed_args.pullPath, 
-        push_path=parsed_args.pushPath, 
-        process_type=parsed_args.processType,
-        )
-
-if __name__ == "__main__":
-    main()

@@ -2,12 +2,19 @@ import numpy as np
 import pandas as pd
 from collections.abc import Iterable
 from typing import Dict, Any
+from pathlib import Path
 # import spacy
 # nlp_model = spacy.load("en_core_web_md")
 from sklearn.metrics.pairwise import cosine_similarity 
 # from rapidfuzz import fuzz, process
 
 from ASFINT.Utility.Cleaning import is_type, in_df, any_in_df, is_valid_iter, any_drop
+
+def ensure_folder(path: Path):
+    """Create folder if it doesn't exist."""
+    if not path.exists():
+        print(f"Creating missing folder: {path}")
+        path.mkdir(parents=True, exist_ok=True)
 
 def column_converter(df:pd.DataFrame, 
                     dict: Dict = None, 
