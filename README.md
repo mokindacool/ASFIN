@@ -24,3 +24,6 @@ Then start running the workflow. Make sure you're in the working directory, your
 Then type in: `python execute.py` and you should be good. 
 
 Debug as needed. 
+
+# How does ASFIN work?
+The main ETL functions labelled pull, process and push are located in `ASFINT/Pipeline/workflow.py`. Files in the root like `execute.py` (execites programmatically) and `run.py` (executes via terminal) call the entire workflow to run. `ASFINT/Transform/processory.py` contains all the nitty gritty transformation functions and `ASFINT/Config/config.py` contains all the settings for different datasets/process types the workflow expects and currently supports. 
