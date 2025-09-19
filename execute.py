@@ -27,6 +27,10 @@ def main(manual=None, args=None):
         "--process", "-p", type=str, default="fr",
         help="Type of processing (e.g., fr, absa, agenda)"
     )
+    parser.add_argument(
+        "--reporting", "-r", type=bool, default=True,
+        help="Toggling debugging prints"
+    )
     
     args = parser.parse_args()
 
@@ -40,7 +44,7 @@ def main(manual=None, args=None):
     ensure_folder(push_path)
 
     # Run pipeline
-    run(pull_path=str(pull_path), push_path=str(push_path), process_type=args.process)
+    run(pull_path=str(pull_path), push_path=str(push_path), process_type=args.process, reporting=args.reporting)
 
 if __name__ == "__main__":
     MANUAL = False

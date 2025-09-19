@@ -56,7 +56,7 @@ def FR_Helper(df, given_start = 'Appx', start_col = 0, adding_end_keyword='END',
     rv = copy[copy.index < ending_row_index]
     return rv
 
-def FR_ProcessorV2(df, txt, date_format="%m/%d/%Y", debug=False):
+def FR_ProcessorV2(df, txt, date_format="%m-%d-%Y", debug=False):
     """Employs heading_finder to clean data. Takes in the same spreadsheet as a dataframe (to clean) and txt (to search for the date) then returns the relevant info"""
     assert isinstance(df, pd.DataFrame), f'Inputted df is not a dataframe but type {type(df)}'
 
