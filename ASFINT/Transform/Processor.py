@@ -61,7 +61,7 @@ class ASUCProcessor:
             'Raw Tag': "RF", 
             'Clean Tag': "GF", 
             'Clean File Name': "Ficomm-Cont", 
-            'Date Format':"%m/%d/%Y", 
+            'Date Format':"%m-%d-%Y", 
             'Raw Name Dependency': None, 
             'Processing Function': Agenda_Processor}, 
         "OASIS" : {
@@ -74,7 +74,7 @@ class ASUCProcessor:
             'Raw Tag':"RF", 
             'Clean Tag':"GF", 
             'Clean File Name':"Ficomm-Reso", 
-            'Date Format':"%m/%d/%Y", 
+            'Date Format':"%m-%d-%Y", 
             'Raw Name Dependency':["Date", "Numbering", "Coding"], 
             'Processing Function':FR_ProcessorV2}, 
     }
@@ -129,24 +129,23 @@ class ASUCProcessor:
     # Validation and Log Methods
     # ----------------------------
 
-    def processor_validations(self, df_dict, names, datatype = pd.DataFrame):
-        df_dict_invalid = isinstance(df_dict, str) and df_dict.upper() == 'OVERRIDE'
+    def processor_validations(self, dfs, names, datatype = pd.DataFrame):
+        """We can input keyword 'override' into the dfs arg to negate the validation checks."""
+        df_dict_invalid = isinstance(dfs, str) and dfs.upper() == 'OVERRIDE'
         names_invalid = isinstance(names, str) and names.upper() == 'OVERRIDE'
         if not df_dict_invalid:
-            assert isinstance(df_dict, dict), f"df_dict is not a dictionary but {type(df_dict)}"
-            assert is_type(list(df_dict.keys()), str), f"df_dict keys are not all strings, keys: {list(df_dict.keys())}"
-            assert is_type(list(df_dict.values()), datatype), f"df_dict values are not {datatype}, values: {list(df_dict.values())}"
+            assert isinstance(dfs, Iterable), f"dfs is not a iterable but {type(dfs)}"
+            assert all([isinstance(d, pd.DataFrame) for d in dfs]), f"dfs values are not {datatype}, values: {dfs}"
 
         if not names_invalid:
-            assert isinstance(names, dict), f"names is not a dictionary but {type(names)}"
-            assert is_type(list(names.keys()), str), f"names keys are not all strings, keys: {list(names.keys())}"
-            assert is_type(list(names.values()), str), f"names values are not strings, values: {list(names.values())}"
+            assert isinstance(names, Iterable), f"names is not a iterable but {type(names)}"
+            assert all([isinstance(n, str) for n in names]), f"names values are not strings, values: {names}"
 
         if not df_dict_invalid and not names_invalid:
-            assert len(df_dict) == len(names), f"Given {len(df_dict)} dataframe(s) but {len(names)} name(s)"
+            assert len(dfs) == len(names), f"Given {len(dfs)} dataframe(s) but {len(names)} name(s)"
 
-        if not df_dict:
-            raise ValueError("df_dict is empty! No DataFrames to process.")
+        if not dfs:
+            raise ValueError("dfs is empty! No DataFrames to process.")
         if not names:
             raise ValueError("names is empty! No file names to process.")
 
@@ -161,10 +160,13 @@ class ASUCProcessor:
     # Processor Methods
     # ----------------------------
     
-    def absa(self, dfs, names, reporting = False) -> list[pd.DataFrame]:
+    def absa(self, dfs: Iterable[pd.DataFrame], names: Iterable[str], reporting = False) -> list[pd.DataFrame]:
         # need to check if df_dict and names are the same length but handle for case when name is a single string
         if isinstance(dfs, pd.DataFrame): dfs = [dfs]
         if isinstance(names, str): names = [names]
+
+        dfs = list(dfs)
+        names = list(names)
 
         rv = []
         for i in range(len(dfs)):
@@ -201,13 +203,16 @@ class ASUCProcessor:
                 raise e
         return rv, names
     
-    def contingency(self, txt_lst, names, reporting = False) -> list[pd.DataFrame]:
+    def contingency(self, txt_lst: Iterable[str], names: Iterable[str], reporting = False) -> list[pd.DataFrame]:
         """
         Function that takes in a dictionary of txt files and names then outputs a dictionary of processed txt files with updated names. 
         Date is appended to updated file names under formatting: %m/%d/%Y.
         """
         if isinstance(txt_lst, str): txt_lst = [txt_lst]
         if isinstance(names, str): names = [names]
+
+        txt_lst = list(txt_lst)
+        names = list(names)
 
         rv = []
         for i in range(len(txt_lst)): 
@@ -222,7 +227,7 @@ class ASUCProcessor:
 
             # Date Formatting Output
             t = self.get_type()
-            date_format = self.get_config(process=t, key='Date Format', substitute="%m/%d/%Y")
+            date_format = self.get_config(process=t, key='Date Format', substitute="%m-%d-%Y")
 
             # Processing 
             try:
@@ -244,9 +249,12 @@ class ASUCProcessor:
                 names[i] = validated_name
         return rv, names
     
-    def oasis(self, dfs, names, reporting = False) -> list[pd.DataFrame]:
+    def oasis(self, dfs: Iterable[pd.DataFrame], names: Iterable[str], reporting = False) -> list[pd.DataFrame]:
         if isinstance(dfs, pd.DataFrame): dfs = [dfs]
         if isinstance(names, str): names = [names]
+
+        dfs = list(dfs)
+        names = list(names)
 
         rv = []
         for i in range(len(dfs)):
@@ -281,11 +289,13 @@ class ASUCProcessor:
                 raise e
         return rv, names
     
-    def fr(self, dfs, names, reporting = False) -> list[pd.DataFrame]:
+    def fr(self, dfs: Iterable[Tuple[pd.DataFrame, str]], names: Iterable[str], reporting = False) -> list[pd.DataFrame]:
         assert self.processor_validations('OVERRIDE', names)
+        dfs = list(dfs)
+        names = list(names)
         
         rv = []
-        for i, (df, txt) in enumerate(dfs): 
+        for i, (df, txt) in enumerate(dfs): # txt is the raw text repr, df is the dataframe rpr
             name = names[i]
 
             # Name Validation + Renaming
@@ -308,7 +318,7 @@ class ASUCProcessor:
 
             # Date Formatting Output
             t = self.get_type()
-            date_format = self.get_config(process=t, key='Date Format', substitute="%m/%d/%Y")
+            date_format = self.get_config(process=t, key='Date Format', substitute="%m-%d-%Y")
 
             # Processing
             try:
@@ -323,13 +333,16 @@ class ASUCProcessor:
                 names[i] = f"{self.get_file_naming(tag_type = 'Clean')}-{fiscal_year}-{date}-{number}-MISMATCH"
             else:
                 validated_name = f"{self.get_file_naming(tag_type = 'Clean')}-{fiscal_year}-{date}-{number}-{self.get_tagging(tag_type = 'Clean')}" # ABSA draws from ficomm files formatted "ABSA-date-RF"
+                print(f"Validated Name: {validated_name}")
                 names[i] = validated_name
 
         return rv, names
         
     # A little inspo from CS189 HW6
-    def __call__(self, df_dict: dict[str, pd.DataFrame], names: dict[str, str], reporting: bool = False) -> list[pd.DataFrame]:
+    def __call__(self, dfs: Iterable[pd.DataFrame], names: Iterable[str], reporting: bool = False) -> list[pd.DataFrame]:
         """Call the appropriate processing function based on type."""
         if self.type not in self.processors:
             raise ValueError(f"Unsupported processing type '{self.type}'")
-        return self.processors[self.type](df_dict, names, reporting) 
+        if reporting: 
+            print(f"Utilizing processor function: {self.processors[self.type].__name__}")
+        return self.processors[self.type](dfs, names, reporting) 
