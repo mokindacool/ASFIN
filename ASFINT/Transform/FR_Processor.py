@@ -5,84 +5,92 @@ import argparse
 from ASFINT.Utility.Utils import heading_finder
 from ASFINT.Utility.Cleaning import in_df
 
-def FR_Helper(df, given_start = 'Appx', start_col = 0, adding_end_keyword='END', end_col = 0, alphabet=None, nth_occurence = 1, reporting=False) -> pd.DataFrame:
+def FR_Helper(df):
     """
-    Returns rows of dataframe that correspond to an given alphabet. Stops at first NA row if no alphabet is provided.
+    Split raw FR sheet into two DataFrames:
+      - requests_df: contains Amount Requested
+      - decisions_df: contains Committee Status + Amount Approved
+    Both are cropped starting at 'Appx' and filtered by allowed FY24 alphabet.
     """
-    assert isinstance(start_col, str) or isinstance(start_col, int), "'start_col' must be index of column or name of column."
-    assert in_df(start_col, df), f"start_col '{start_col}' is not in df columns: {df.columns.tolist()}"
+    # Find starting point (first "Appx")
+    start_idx = df.index[df.iloc[:, 0].astype(str).str.contains("Appx", na=False)]
+    if len(start_idx) == 0:
+        return df, None, None
+    start = start_idx[0]
 
-    def in_alphabet_helper(series: pd.Series, alphabet_list: list[str], nth: int = 1) -> pd.Series:
-        occurrences = dict.fromkeys(alphabet_list, 0)
-        result_mask = []
-        for val in series:
-            if val in occurrences:
-                if occurrences[val] < nth:
-                    result_mask.append(True)
-                    occurrences[val] += 1
-                else:
-                    result_mask.append(False)
-            else:
-                result_mask.append(False)
-        return pd.Series(result_mask, index=series.index)
-
-    if end_col is not None:
-        assert isinstance(end_col, str) or isinstance(end_col, int), "'end_col' must be index of column or name of column."
-        assert in_df(end_col, df), 'Given end_col is not in the given df.'
-    else:
-        end_col = start_col
-
-    start_col_index = df.columns.get_loc(start_col) if isinstance(start_col, str) else start_col #extract index of start and end column
-    end_col_index = df.columns.get_loc(end_col) if isinstance(end_col, str) else end_col #extract index of start and end column
-    
-    copy = df.copy()
-    copy = heading_finder(copy, start_col=0, start=given_start, start_logic='contains') # no ending logic just take all rows below the starting point
-    col = copy.columns[start_col_index]
-    try:
-        if alphabet is None:
-            na_indices = copy[copy[col].isna()].index
-            if na_indices.empty:
-                raise ValueError("No NaN row found to mark as end of section.")
-            ending_row_index = na_indices[0]
-        else:
-            mask = in_alphabet_helper(copy[col], alphabet.copy(), nth_occurence)
-            valid_rows: pd.DataFrame = copy[mask]
-            if valid_rows.empty:
-                raise ValueError("No valid rows with alphabet keys found.")
-            ending_row_index = valid_rows.index[-1] + 1
-
-    except Exception as e:
-           print(f"Warning: Could not insert ending keyword '{adding_end_keyword}' in column {end_col}, received exception\n{e}")
-    rv = copy[copy.index < ending_row_index]
-    return rv
-
-def FR_ProcessorV2(df, txt, date_format="%m-%d-%Y", debug=False):
-    """Employs heading_finder to clean data. Takes in the same spreadsheet as a dataframe (to clean) and txt (to search for the date) then returns the relevant info"""
-    assert isinstance(df, pd.DataFrame), f'Inputted df is not a dataframe but type {type(df)}'
-
-    FY24_Alphabet = 'A B C D E F G H I J K L M N O P Q R S T U V W X Y Z'.split()
-    FY24_Alphabet.extend(
-        'AA AB AC AD AE AF AG AH AI AJ AK AL AM AN AO AP AQ AR AS AT AU AV AW AX AY AZ'.split()
-    )
-    FY24_Alphabet.extend(
-        'BB CC DD EE FF GG HH II JJ KK LL MM NN OO PP QQ RR SS TT UU VV WW XX YY ZZ'.split()
+    # Allowed labels (A-Z, AA-AZ, BB-ZZ)
+    allowed = set(
+        [chr(c) for c in range(65, 91)] +
+        [f"A{chr(c)}" for c in range(65, 91)] +
+        [f"B{chr(c)}" for c in range(65, 91)]
     )
 
-    # Match dates like "04/12/2024" or "2024-04-12"
-    date_match = re.search(r'\b(\d{1,2}\/\d{1,2}\/\d{4}|\d{4}-\d{1,2}-\d{1,2})\b', txt)    
-    if not date_match:
-        if debug:
-            print(f"FR_ProcessorV2 found no date in given FR dataframe:\n{df}")
-        date = "00/00/0000"
-    else:
-        date_str = date_match[0]  # the matched date string
-        dt = pd.to_datetime(date_str, errors='coerce')  # parse string into timestamp object
-        date = dt.strftime(date_format)
-    try:
-        rv = FR_Helper(df, alphabet=FY24_Alphabet)
-    except Exception as e:
-        if debug:
-            print(f"FR_ProcessorV2 errored on df\n{df}")
-        raise e
-    return rv, date
-    
+    # Crop to rows after "Appx"
+    cropped = df.iloc[start + 1:].copy()
+    cropped = cropped[cropped.iloc[:, 0].astype(str).isin(allowed)]
+
+    # Now split into two subtables: requests vs committee decisions
+    # Assumption: the raw file stacks two tables vertically with same headers
+    header_row = cropped.columns.tolist()
+    if "Amount Requested" in header_row and "Committee Status" in header_row:
+        # Already unified, rare case
+        return cropped, None, None
+
+    # Otherwise, detect split by column names
+    request_cols = [c for c in cropped.columns if "Requested" in str(c)]
+    decision_cols = [c for c in cropped.columns if "Approved" in str(c) or "Committee" in str(c)]
+
+    if not request_cols or not decision_cols:
+        # Could not split
+        return cropped, None, None
+
+    requests_df = cropped.loc[:, [c for c in cropped.columns if "Requested" in str(c) or c in ["Appx", "Org Name", "Request Type", "Org Type", "Funding Source", "Primary Contact", "Email Address"]]]
+    decisions_df = cropped.loc[:, [c for c in cropped.columns if "Approved" in str(c) or "Committee" in str(c) or c in ["Appx", "Org Name"]]]
+
+    return cropped, requests_df, decisions_df
+
+def FR_ProcessorV2(df, txt, date_format):
+    """
+    Clean FR sheet:
+      - Extract meeting date from text
+      - Split into requests & decisions
+      - Merge on Appx + Org Name
+      - Output unified DataFrame with Amount Requested + Amount Allowed
+    """
+    # Extract date from text
+    date_regex = r"(\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2})"
+    match = re.search(date_regex, str(txt))
+    date_str = match.group(1) if match else "undated"
+
+    cropped, requests_df, decisions_df = FR_Helper(df)
+
+    if requests_df is None or decisions_df is None:
+        # Fallback: just return cropped
+        return {"FR_clean_" + date_str: cropped}
+
+    # Merge on keys
+    merged = pd.merge(
+        requests_df,
+        decisions_df,
+        on=["Appx", "Org Name"],
+        how="left",
+        suffixes=("", "_dec")
+    )
+
+    # Rename columns
+    if in_df(merged, "Amount Approved"):
+        merged = merged.rename(columns={"Amount Approved": "Amount Allowed"})
+    if in_df(merged, "Committee Status"):
+        merged = merged.drop(columns=["Committee Status"])
+
+    # Reorder columns
+    col_order = [
+        "Appx", "Org Name", "Request Type", "Org Type",
+        "Amount Requested", "Amount Allowed", "Funding Source",
+        "Primary Contact", "Email Address"
+    ]
+    merged = merged[[c for c in col_order if c in merged.columns]]
+
+    safe_date = str(date_str).replace("/", "-").replace("\\", "-").replace(":", "-")
+    out_name = f"FR_clean_{safe_date}"
+    return {out_name: merged}

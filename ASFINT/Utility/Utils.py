@@ -10,11 +10,15 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from ASFINT.Utility.Cleaning import is_type, in_df, any_in_df, is_valid_iter, any_drop
 
-def ensure_folder(path: Path):
-    """Create folder if it doesn't exist."""
+def ensure_folder(path):
+    """
+    Ensure a folder exists. Accepts either str or Path.
+    """
+    path = Path(path)  # normalize
     if not path.exists():
         print(f"Creating missing folder: {path}")
         path.mkdir(parents=True, exist_ok=True)
+    return path
 
 def column_converter(df:pd.DataFrame, 
                     dict: Dict = None, 

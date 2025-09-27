@@ -1,348 +1,252 @@
-import pandas as pd
-from typing import Callable, Tuple, List, Iterable
+"""
+Processor.py
+Dispatch & orchestration for ASFIN/ASFINT processors.
+
+- Defines ASUCProcessor (class-based API).
+- Provides top-level process(files, process_type) function
+  for compatibility with existing Pipeline/workflow.py.
+"""
+
+from __future__ import annotations
+
 import re
+from typing import Iterable, List, Tuple, Dict, Any
+
+import pandas as pd
+
 from ASFINT.Utility.Cleaning import is_type
 from ASFINT.Utility.Logger_Utils import get_logger
-from ASFINT.Transform import ABSA_Processor, Agenda_Processor, OASIS_Abridged, FR_ProcessorV2
+
+# Use concrete module imports (more reliable for editors/runners)
+from ASFINT.Transform.ABSA_Processor import ABSA_Processor
+from ASFINT.Transform.Agenda_Processor import Agenda_Processor
+from ASFINT.Transform.OASIS_Processor import OASIS_Abridged
+from ASFINT.Transform.FR_Processor import FR_ProcessorV2
+
 
 class ASUCProcessor:
     """
-    Lite version --> doesn't take in a dict mapping file ids to names and dataframes.
+    Wrapper for per-dataset processors.
 
-    Wrapper class for processors. Specify the file type (eg. ABSA) then the __call__ method executes the appropriate processing function, outputting the result.
-    The get_type method also outputs the type of processing (eg. ABSA processing pipeline) the ASUCProcessor instance was instructed to execute. 
-    Both the actual output of processing (list of processed pd.DataFrame objects) and the type of processing initiated (self.type) are returned to an upload function. 
-    
-    Processing functions must take in:
-    - df_dict (dict[str:pd.DataFrame]): dictionary where keys are file ids and values are the raw files converted into pandas dataframes.
-    - reporting (str): parameter that tells the processing function whether or not to print outputs on processing progress.
-    - names (dict[str:str]): dictionary where keys are file ids and values are raw file names.
-    
-    Processing functions must return:
-    - list of processed pd.DataFrame objects
-    - list of names with those failing naming conventions highighted
-        - highlighting means we append 'MISMATCH' to the beginning the name
-    
-    Higher level architecture:
-    - drive_pull func --> outputs raw files as dataframes and list of raw file names
-    - ASUCProcessor instance 
-        - takes in list of raw files names and raw fils as dataframes
-
-        --> outputs processed fils in a list, type of processing executed and refined list of names with naming convention mismatches flagged
-    - drive_push func:
-        - From ASUCProcessor instance: take in the outputs of the processed files, the type of processing executed and updated list of names
-        
-        --> adjust the names of the files accodingly to indicate they're cleaned (based on raw file name and type of processing initiated) then upload files back into ocfo.database drive.
-
-    Dependencies:
-    - Currently depends on having ABSA_Processor from ASUCExplore > Core > ABSA_Processor.py alr imported into the file
+    Typical flow (external):
+        proc = ASUCProcessor("FR")
+        dfs_out, names_out = proc.fr(dfs_in, names_in, reporting=True)
     """
 
     def __init__(self, process_type: str):
         self.type = process_type.upper()
         self.logger = get_logger(self.type)
         self.processors = {
-            'ABSA': self.absa,
-            'CONTINGENCY': self.contingency,
-            'OASIS': self.oasis, 
-            'FR': self.fr, 
+            "ABSA": self.absa,
+            "OASIS": self.oasis,
+            "FR": self.fr,
+            "CONTINGENCY": self.contingency,
         }
-        if self.type not in self.processors:
-            raise ValueError(f"Invalid process type '{self.type}'")
-        
-    process_configs = {
-        "ABSA" : {
-            'Raw Tag': "RF", 
-            'Clean Tag': "GF", 
-            'Clean File Name': "ABSA", 
-            'Raw Name Dependency': ["Date"], # raw files need to have the date in their file name
-            'Processing Function': ABSA_Processor}, 
-        "CONTINGENCY" : {
-            'Raw Tag': "RF", 
-            'Clean Tag': "GF", 
-            'Clean File Name': "Ficomm-Cont", 
-            'Date Format':"%m-%d-%Y", 
-            'Raw Name Dependency': None, 
-            'Processing Function': Agenda_Processor}, 
-        "OASIS" : {
-            'Raw Tag':"RF", 
-            'Clean Tag':"GF", 
-            'Clean File Name':"OASIS", 
-            'Raw Name Dependency':["Date"], 
-            'Processing Function':OASIS_Abridged}, 
-        "FR" : {
-            'Raw Tag':"RF", 
-            'Clean Tag':"GF", 
-            'Clean File Name':"Ficomm-Reso", 
-            'Date Format':"%m-%d-%Y", 
-            'Raw Name Dependency':["Date", "Numbering", "Coding"], 
-            'Processing Function':FR_ProcessorV2}, 
-    }
-    # ----------------------------
-    # Basic Getter Methods
-    # ----------------------------
 
-    def get_type(self):
-        return self.type   
-
+    # --------------------------
+    # Configuration (static)
+    # --------------------------
     @staticmethod
-    def get_process_configs():
+    def get_process_configs() -> Dict[str, Dict[str, Any]]:
+        if hasattr(ASUCProcessor, "process_configs"):
+            return ASUCProcessor.process_configs
+
+        ASUCProcessor.process_configs = {
+            "ABSA": {
+                "Clean Tag": "GF",
+                "Raw Tag": "RF",
+                "Raw Name Dependency": "ABSA",
+                "Clean File Name": "ABSA",
+                "Processing Function": ABSA_Processor,
+            },
+            "OASIS": {
+                "Clean Tag": "GF",
+                "Raw Tag": None,
+                "Raw Name Dependency": None,
+                "Clean File Name": "OASIS",
+                "Processing Function": OASIS_Abridged,
+            },
+            "FR": {
+                "Clean Tag": "GF",
+                "Raw Tag": None,
+                "Raw Name Dependency": None,
+                "Clean File Name": "FR",
+                "Processing Function": FR_ProcessorV2,
+            },
+            "CONTINGENCY": {
+                "Clean Tag": "GF",
+                "Raw Tag": None,
+                "Raw Name Dependency": None,
+                "Clean File Name": "Agenda",
+                "Processing Function": Agenda_Processor,
+            },
+        }
         return ASUCProcessor.process_configs
-    
-    # ----------------------------
-    # Config Getter Methods
-    # ----------------------------
-    
-    @staticmethod
-    def get_config(process: str, key: str, substitute = None) -> str:
-        return ASUCProcessor.get_process_configs().get(process.upper(), {}).get(key, substitute)
-    
-    def get_tagging(self, tag_type = 'Raw') -> str:
-        process_dict = ASUCProcessor.get_process_configs()
-        match tag_type:
-            case 'Raw':
-                query = 'Raw Tag'
-            case 'Clean':
-                query = 'Clean Tag'
-            case _:
-                raise ValueError(f"Unkown tag type {tag_type}. Please specify either 'Raw' or 'Clean'")
-        return process_dict.get(self.get_type()).get(query)
-    
-    def get_file_naming(self, tag_type = 'Clean') -> str:
-        process_dict = ASUCProcessor.get_process_configs()
-        match tag_type:
-            case 'Clean':
-                query = 'Clean File Name'
-            case _:
-                raise ValueError(f"Unkown tag type {tag_type}")
-        return process_dict.get(self.get_type()).get(query)
-    
-    def get_name_dependency(self) -> str:
-        process_dict = ASUCProcessor.get_process_configs()
-        return process_dict.get(self.get_type()).get('Raw Name Dependency')
-    
-    def get_processing_func(self) -> str:
-        process_dict = ASUCProcessor.get_process_configs()
-        return process_dict.get(self.get_type()).get('Processing Function')
-    
-    # ----------------------------
-    # Validation and Log Methods
-    # ----------------------------
 
-    def processor_validations(self, dfs, names, datatype = pd.DataFrame):
-        """We can input keyword 'override' into the dfs arg to negate the validation checks."""
-        df_dict_invalid = isinstance(dfs, str) and dfs.upper() == 'OVERRIDE'
-        names_invalid = isinstance(names, str) and names.upper() == 'OVERRIDE'
-        if not df_dict_invalid:
-            assert isinstance(dfs, Iterable), f"dfs is not a iterable but {type(dfs)}"
-            assert all([isinstance(d, pd.DataFrame) for d in dfs]), f"dfs values are not {datatype}, values: {dfs}"
+    def get_processing_func(self):
+        cfg = ASUCProcessor.get_process_configs()
+        return cfg.get(self.get_type()).get("Processing Function")
 
-        if not names_invalid:
-            assert isinstance(names, Iterable), f"names is not a iterable but {type(names)}"
-            assert all([isinstance(n, str) for n in names]), f"names values are not strings, values: {names}"
+    def get_type(self) -> str:
+        return self.type
 
-        if not df_dict_invalid and not names_invalid:
-            assert len(dfs) == len(names), f"Given {len(dfs)} dataframe(s) but {len(names)} name(s)"
+    def get_file_naming(self, tag_type: str = "Clean") -> str:
+        cfg = ASUCProcessor.get_process_configs()
+        if tag_type != "Clean":
+            raise ValueError(f"Unknown tag type {tag_type}")
+        return cfg.get(self.get_type()).get("Clean File Name")
 
-        if not dfs:
-            raise ValueError("dfs is empty! No DataFrames to process.")
-        if not names:
-            raise ValueError("names is empty! No file names to process.")
+    def get_name_dependency(self) -> str | None:
+        cfg = ASUCProcessor.get_process_configs()
+        return cfg.get(self.get_type()).get("Raw Name Dependency")
 
-        return True
-
-    def _log(self, msg, reporting):
-        self.logger.info(msg)
+    def _log(self, msg: str, reporting: bool) -> None:
         if reporting:
             print(msg)
-    
-    # ----------------------------
-    # Processor Methods
-    # ----------------------------
-    
-    def absa(self, dfs: Iterable[pd.DataFrame], names: Iterable[str], reporting = False) -> list[pd.DataFrame]:
-        # need to check if df_dict and names are the same length but handle for case when name is a single string
-        if isinstance(dfs, pd.DataFrame): dfs = [dfs]
-        if isinstance(names, str): names = [names]
+        else:
+            self.logger.info(msg)
 
+    def name_clean(self, names: Iterable[str], subst_name: str | None = None, reporting: bool = False) -> List[str]:
+        out: List[str] = []
+        for raw in names:
+            assert isinstance(raw, str), "expected name to be a string"
+            new = re.sub(r"\([\d]+\)", "", raw)
+            new = new.replace(".gsheet", "").replace(".xlsx", "").replace(".csv", "").strip()
+            dep = self.get_name_dependency()
+            if subst_name and dep:
+                new = new.replace(dep, subst_name)
+            self._log(f"Cleaned name: '{raw}' -> '{new}'", reporting)
+            out.append(new)
+        return out
+
+    # --------------------------
+    # ABSA
+    # --------------------------
+    def absa(self, dfs: Iterable[pd.DataFrame], names: Iterable[str], reporting: bool = False) -> Tuple[List[pd.DataFrame], List[str]]:
         dfs = list(dfs)
         names = list(names)
+        names = self.name_clean(names=names, subst_name="ABSA", reporting=reporting)
 
-        rv = []
-        for i in range(len(dfs)):
-            df = dfs[i]
-            name = names[i]
+        out_frames: List[pd.DataFrame] = []
+        out_names: List[str] = []
 
-            # Name Validation + Renaming
-            mismatch = False
-            year_match = re.search(r'(?:FY\d{2}|fr\d{2}|\d{2}\-\d{2}\|\d{4}\-\d{4}\)|\d{2}_\d{2})', name)
-            if not year_match:
-                self._log(f"No valid year in file name\nFile: {name}", reporting)
-                mismatch = True
-            year = year_match[0]
-
-            if self.get_type().lower() not in name.lower():
-                self._log(f"File name does not match expected type.\nFile: {name}", reporting)
-                mismatch = True
-
-            if mismatch:
-                names[i] = f"{self.get_file_naming(tag_type = 'Clean')}-{year}-MISMATCH"
-                if self.get_tagging(tag_type = 'Raw') not in names[i]:
-                    names[i] = names[i] + '-RF'
-            else:
-                validated_name = f"{self.get_file_naming(tag_type = 'Clean')}-{year}-{self.get_tagging(tag_type = 'Clean')}" # ABSA draws from ficomm files formatted "ABSA-date-RF"
-                names[i] = validated_name
-            
-            # Processing
+        for df, name in zip(dfs, names):
+            assert isinstance(df, pd.DataFrame), "expected a pandas DataFrame"
             try:
-                processing_function = self.get_processing_func()
-                rv.append(processing_function(df))
-                self._log(f"Successfully processed {name} with processing function '{self.get_processing_func().__name__}'", reporting)
+                fn = self.get_processing_func()
+                processed = fn(df)
+                out_frames.append(processed)
+                out_names.append(self.get_file_naming())
+                self._log(f"[ABSA] Processed '{name}' via {fn.__name__}", reporting)
             except Exception as e:
-                self._log(f"Processing failed for {name}, processing function: {self.get_processing_func().__name__}) : {str(e)}", reporting)
-                raise e
-        return rv, names
-    
-    def contingency(self, txt_lst: Iterable[str], names: Iterable[str], reporting = False) -> list[pd.DataFrame]:
-        """
-        Function that takes in a dictionary of txt files and names then outputs a dictionary of processed txt files with updated names. 
-        Date is appended to updated file names under formatting: %m/%d/%Y.
-        """
-        if isinstance(txt_lst, str): txt_lst = [txt_lst]
-        if isinstance(names, str): names = [names]
+                self._log(f"[ABSA] Failed '{name}': {e}", reporting)
+                raise
+        return out_frames, out_names
 
-        txt_lst = list(txt_lst)
-        names = list(names)
-
-        rv = []
-        for i in range(len(txt_lst)): 
-            txt = txt_lst[i]
-            name = names[i]
-
-            # Name Validation
-            mismatch = False
-            if 'ficomm' not in name.lower() and 'finance committee' not in name.lower():
-                self._log(f"Name mismatch: {name}", reporting)
-                mismatch = True
-
-            # Date Formatting Output
-            t = self.get_type()
-            date_format = self.get_config(process=t, key='Date Format', substitute="%m-%d-%Y")
-
-            # Processing 
-            try:
-                processing_function = self.get_processing_func()
-                output, date = processing_function(txt, date_format=date_format, debug=False)
-                rv.append(output)
-                self._log(f"Successfully processed {name}", reporting)
-            except Exception as e:
-                self._log(f"Processing failed for {name}: {str(e)}", reporting)
-                raise e
-            
-            # Renaming
-            if mismatch:
-                names[i] = f"{self.get_file_naming(tag_type = 'Clean')}-{fiscal_year}-{date_formatted}-MISMATCH"
-            else:
-                date_formatted = pd.Timestamp(date).strftime("%m/%d/%Y")
-                fiscal_year = f"FY{str(pd.Timestamp(date).year)[-2:]}" # formatting to FY24, FY25, etc
-                validated_name = f"{self.get_file_naming(tag_type = 'Clean')}-{fiscal_year}-{date_formatted}-{self.get_tagging(tag_type = 'Clean')}" # Contingency draws from ficomm files formatted "Ficomm-date-RF"
-                names[i] = validated_name
-        return rv, names
-    
-    def oasis(self, dfs: Iterable[pd.DataFrame], names: Iterable[str], reporting = False) -> list[pd.DataFrame]:
-        if isinstance(dfs, pd.DataFrame): dfs = [dfs]
-        if isinstance(names, str): names = [names]
-
+    # --------------------------
+    # OASIS
+    # --------------------------
+    def oasis(self, dfs: Iterable[pd.DataFrame], names: Iterable[str], reporting: bool = False, year: str = "2024") -> Tuple[List[pd.DataFrame], List[str]]:
         dfs = list(dfs)
         names = list(names)
+        names = self.name_clean(names=names, subst_name="OASIS", reporting=reporting)
 
-        rv = []
-        for i in range(len(dfs)):
-            df = dfs[i]
-            name = names[i]
+        out_frames: List[pd.DataFrame] = []
+        out_names: List[str] = []
 
-            # Name Validation
-            mismatch = False
-            year_match = re.search(r'(?:FY\d{2}|fr\d{2}|\d{2}\-\d{2}\|\d{4}\-\d{4}\)|\d{2}_\d{2})', name)
-            if not year_match:
-                self._log(f"No valid year in file name: {name}", reporting)
-                mismatch = True
-            year = year_match[0]
-
-            if self.get_type().lower() not in name.lower():
-                self._log(f"Type mismatch in name: {name}", reporting)
-                mismatch = True
-
-            if mismatch:
-                names[i] = f"{self.get_file_naming(tag_type = 'Clean')}-{year}-MISMATCH"
-            else:
-                validated_name = f"{self.get_file_naming(tag_type = 'Clean')}-{year}-{self.get_tagging(tag_type = 'Clean')}" # ABSA draws from ficomm files formatted "ABSA-date-RF"
-                names[i] = validated_name
-                
-            # Processing
+        for df, name in zip(dfs, names):
+            assert isinstance(df, pd.DataFrame), "expected a pandas DataFrame"
             try:
-                processing_function = self.get_processing_func()
-                rv.append(processing_function(df, year))
-                self._log(f"Successfully processed {name} with processing function '{self.get_processing_func().__name__}'", reporting)
+                fn = self.get_processing_func()
+                processed = fn(df, year=year)
+                out_frames.append(processed)
+                out_names.append(self.get_file_naming())
+                self._log(f"[OASIS] Processed '{name}' via {fn.__name__}", reporting)
             except Exception as e:
-                self._log(f"Processing failed for {name}, processing function: {self.get_processing_func().__name__}) : {str(e)}", reporting)
-                raise e
-        return rv, names
-    
-    def fr(self, dfs: Iterable[Tuple[pd.DataFrame, str]], names: Iterable[str], reporting = False) -> list[pd.DataFrame]:
-        assert self.processor_validations('OVERRIDE', names)
+                self._log(f"[OASIS] Failed '{name}': {e}", reporting)
+                raise
+        return out_frames, out_names
+
+    # --------------------------
+    # FR
+    # --------------------------
+    def fr(self, dfs: Iterable[Tuple[pd.DataFrame, str]], names: Iterable[str], reporting: bool = False) -> Tuple[List[pd.DataFrame], List[str]]:
         dfs = list(dfs)
         names = list(names)
-        
-        rv = []
-        for i, (df, txt) in enumerate(dfs): # txt is the raw text repr, df is the dataframe rpr
-            name = names[i]
+        names = self.name_clean(names=names, subst_name="FR", reporting=reporting)
 
-            # Name Validation + Renaming
-            mismatch = False
-            year_match = re.search(r'(\d{2})[_/](\d{2})', name)
-            if not year_match:
-                self._log(f"No valid year in name: {name}", reporting)
-                fiscal_year = "FY??"
-                mismatch = True
-            else:
-                fiscal_year = f"FY{year_match.group(2)}"
+        out_frames: List[pd.DataFrame] = []
+        out_names: List[str] = []
 
-            numbering_match = re.search(r'(?:F|S)\d{1,2}', name) # should be able to match up to two digits F4 or S14
-            if not numbering_match:
-                self._log(f"Missing numbering code in name: {name}", reporting)
-                mismatch = True
-                number = "X00"
-            else:
-                number = numbering_match.group(0).upper()
+        for idx, pair in enumerate(dfs):
+            if not isinstance(pair, (tuple, list)) or len(pair) != 2:
+                raise ValueError(f"[FR] Expected (df, txt) tuple at index {idx}")
+            df, txt = pair
+            assert isinstance(df, pd.DataFrame), "expected a pandas DataFrame"
 
-            # Date Formatting Output
-            t = self.get_type()
-            date_format = self.get_config(process=t, key='Date Format', substitute="%m-%d-%Y")
-
-            # Processing
             try:
-                processing_function = self.get_processing_func()
-                output, date = processing_function(df, txt, date_format=date_format, debug=False)
-                rv.append(output)
-                self._log(f"Successfully processed {name} with processing function '{self.get_processing_func().__name__}'", reporting)
+                fn = self.get_processing_func()  # FR_ProcessorV2
+                produced: Dict[str, pd.DataFrame] = fn(df, txt, date_format="%Y-%m-%d")
+                for out_name, out_df in produced.items():
+                    out_frames.append(out_df)
+                    out_names.append(out_name)
+                    self._log(f"[FR] Produced '{out_name}' via {fn.__name__}", reporting)
             except Exception as e:
-                self._log(f"Processing failed for {name}, processing function: {self.get_processing_func().__name__}) : {str(e)}", reporting)
+                src_name = names[idx] if idx < len(names) else f"index-{idx}"
+                self._log(f"[FR] Failed '{src_name}': {e}", reporting)
+                raise
+        return out_frames, out_names
 
-            if mismatch:
-                names[i] = f"{self.get_file_naming(tag_type = 'Clean')}-{fiscal_year}-{date}-{number}-MISMATCH"
-            else:
-                validated_name = f"{self.get_file_naming(tag_type = 'Clean')}-{fiscal_year}-{date}-{number}-{self.get_tagging(tag_type = 'Clean')}" # ABSA draws from ficomm files formatted "ABSA-date-RF"
-                print(f"Validated Name: {validated_name}")
-                names[i] = validated_name
+    # --------------------------
+    # CONTINGENCY
+    # --------------------------
+    def contingency(self, dfs: Iterable[pd.DataFrame], names: Iterable[str], reporting: bool = False) -> Tuple[List[pd.DataFrame], List[str]]:
+        dfs = list(dfs)
+        names = list(names)
+        names = self.name_clean(names=names, subst_name="Agenda", reporting=reporting)
 
-        return rv, names
-        
-    # A little inspo from CS189 HW6
-    def __call__(self, dfs: Iterable[pd.DataFrame], names: Iterable[str], reporting: bool = False) -> list[pd.DataFrame]:
-        """Call the appropriate processing function based on type."""
-        if self.type not in self.processors:
-            raise ValueError(f"Unsupported processing type '{self.type}'")
-        if reporting: 
-            print(f"Utilizing processor function: {self.processors[self.type].__name__}")
-        return self.processors[self.type](dfs, names, reporting) 
+        out_frames: List[pd.DataFrame] = []
+        out_names: List[str] = []
+
+        for df, name in zip(dfs, names):
+            assert isinstance(df, pd.DataFrame), "expected a pandas DataFrame"
+            try:
+                fn = self.get_processing_func()
+                processed = fn(df)
+                out_frames.append(processed)
+                out_names.append(self.get_file_naming())
+                self._log(f"[CONTINGENCY] Processed '{name}' via {fn.__name__}", reporting)
+            except Exception as e:
+                self._log(f"[CONTINGENCY] Failed '{name}': {e}", reporting)
+                raise
+        return out_frames, out_names
+
+    # --------------------------
+    # Dispatcher
+    # --------------------------
+    def dispatch(self, dfs: Iterable, names: Iterable[str], reporting: bool = False, **kwargs) -> Tuple[List[pd.DataFrame], List[str]]:
+        proc = self.processors.get(self.get_type())
+        if not proc:
+            raise ValueError(f"Unknown process type: {self.get_type()}")
+        return proc(dfs, names, reporting=reporting, **kwargs)
+
+
+# --------------------------
+# Backward-compatible function
+# --------------------------
+def process(files: Dict, process_type: str) -> Dict[str, pd.DataFrame]:
+    """
+    Backward-compatible function expected by Pipeline/workflow.py.
+    Wraps ASUCProcessor.dispatch and returns dict[name: DataFrame].
+    """
+    proc = ASUCProcessor(process_type)
+    names = list(files.keys())
+    dfs = list(files.values())
+
+    processed_dfs, processed_names = proc.dispatch(dfs, names, reporting=False)
+
+    # Stitch results into {name: df}
+    results: Dict[str, pd.DataFrame] = {}
+    for name, df in zip(processed_names, processed_dfs):
+        results[name] = df
+    return results

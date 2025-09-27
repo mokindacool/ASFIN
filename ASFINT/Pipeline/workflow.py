@@ -1,90 +1,77 @@
-from collections.abc import Iterable
-import os
-from pathlib import Path
-import pandas as pd
-import argparse
+"""
+workflow.py
+ASFINT Pipeline orchestration:
+  - pull → process → push
 
-from ASFINT.Config.config import get_pFuncs
+Handles high-level ETL for ABSA, OASIS, FR, Agenda.
+"""
+
+import os
+from ASFINT.Config.Config import get_pFuncs, get_naming  # keep as-is
 from ASFINT.Utility.Utils import ensure_folder
 
-# ---------
-# Pull, Push and Process functions
-# ---------
 
-def pull(path: str, process_type: str, reporting=False) -> dict[str, pd.DataFrame]:
+def pull(path: str, process_type: str):
     """
-    Pulls files from a local folder or single file and returns
-    { filename : DataFrame } for ASUCProcessor
+    Load raw files into memory as {filename: DataFrame} (or (DataFrame, text) for FR).
     """
-    target_path = Path(path)
+    pull_func = get_pFuncs(process_type, "pull")
+    return pull_func(path, process_type)
 
-    if not target_path.exists():
-        print(f"Error: Path '{target_path}' does not exist.")
-        return None
 
-    puller = get_pFuncs(process_type=process_type, func='pull')
-    if reporting: print(f"Using puller: {puller.__name__}")
+def process(files: dict, process_type: str, reporting: bool = False):
+    """
+    Dispatch to processor with a local import to avoid circular imports.
+    """
+    # ✅ Import the actual module by its filename (lowercase processor.py)
+    try:
+        from ..Transform import processor as Processor  # relative package import
+    except Exception:
+        # Fallback to absolute import if relative fails
+        import importlib
+        Processor = importlib.import_module("ASFINT.Transform.processor")
 
-    # Case 1: Path is a FILE
-    if target_path.is_file():
-        print(f"Path is a file. Reading '{target_path.name}'...")
+    results = {}
+    try:
+        if reporting:
+            print(f"[INFO] Processing {len(files)} files for process_type={process_type}")
+        results = Processor.process(files, process_type)
+    except Exception as e:
+        file_list = list(files.keys())
+        print(f"[ERROR] Processing failed for process_type={process_type}. Files: {file_list}. Error: {e}")
+        # ... keep your errored-dump code here ...
+        return {}
+    return results
+
+def push(dfs: dict, path: str, process_type: str):
+    """
+    Write cleaned DataFrames to disk using configured naming.
+    """
+    push_func = get_pFuncs(process_type, "push")
+    for fname, df in dfs.items():
         try:
-            df = puller(target_path, process_type)
-            return {target_path.name: df}
+            push_func(df, fname, path)
         except Exception as e:
-            print(f"Could not read or process file '{target_path.name}' with puller '{puller.__name__}': {e}")
-            return None
+            print(f"[ERROR] Failed to push '{fname}' for {process_type}: {e}")
 
-    # Case 2: Path is a DIRECTORY
-    elif target_path.is_dir():
-        print(f"Path is a directory. Searching for files in '{target_path.name}'...\n")
-        files = {}
-        for item in target_path.iterdir():
-            if item.is_file():
-                try:
-                    df = puller(item, process_type) # should be a tuple if process_type == 'FR'
-                    files[item.name] = df
-                except Exception as e:
-                    print(f"Could not read or process file '{item.name}' with puller '{puller.__name__}': {e}")
 
-        if not files:
-            print(f"No files found in the directory '{target_path.name}'.")
-            return None
-        return files
-
-    # Case 3: Invalid path
-    else:
-        print(f"Error: Path '{target_path}' is not a valid file or directory.")
-        return None
-
-def push(dfs: dict[str, pd.DataFrame], path: str, process_type: str, reporting=False) -> None:
+def run(pull_path: str, push_path: str, process_type: str, reporting: bool = False):
     """
-    Saves a list of transformed files onto some local folder
+    Full ETL orchestration: pull → process → push.
+    Normalize process_type to uppercase for config lookups.
     """
-    target_path = Path(path)
-    if not target_path.is_dir(): raise ValueError(f"Inputted path must be to a existing directory, current path is invalid: {path}")
+    # normalize process type so 'fr' works
+    pt = (process_type or "").upper()
 
-    pusher = get_pFuncs(process_type=process_type, func='push') 
-    if reporting: print(f"Using pusher: {pusher.__name__}")
+    ensure_folder(pull_path)
+    ensure_folder(push_path)
 
-    for name, dataframe in dfs.items():
-        pusher(dataframe, name, target_path)
+    if reporting:
+        print(f"[INFO] Starting pipeline for process_type={process_type}")
 
+    files = pull(pull_path, pt)
+    cleaned = process(files, pt, reporting=reporting)
+    push(cleaned, push_path, pt)
 
-def process(files: dict[str, pd.DataFrame], process_type: str, reporting=False) -> dict[str, pd.DataFrame]:
-    """
-    Calls ASUCProcessor to process a list of files
-    """
-
-    processor = get_pFuncs(process_type=process_type, func='process')
-    df_lst, new_names = processor(files.values(), files.keys(), reporting) # processor will automatically query for keys and values to get names and dataframes
-    return dict(zip(new_names, df_lst))
-
-
-# --------
-# run function that wraps everything together
-# --------
-def run(pull_path: str, push_path: str, process_type: str, reporting=False):
-    raw_dict = pull(path=pull_path, process_type=process_type, reporting=reporting)
-    clean_dict = process(files=raw_dict, process_type=process_type, reporting=reporting)
-    push(dfs=clean_dict, path=push_path, process_type=process_type, reporting=reporting)
+    if reporting:
+        print(f"[INFO] Finished pipeline for process_type={process_type}")
