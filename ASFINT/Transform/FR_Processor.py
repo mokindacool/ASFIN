@@ -5,6 +5,22 @@ import argparse
 from ASFINT.Utility.Utils import heading_finder
 from ASFINT.Utility.Cleaning import in_df
 
+def _row_has(tokens, row) -> bool:
+    """Return True if all tokens are present in the given row (as strings)."""
+    s = set(str(x).strip() for x in row.tolist())
+    return all(t in s for t in tokens)
+
+def _promote_header(block: pd.DataFrame, header_row_idx: int) -> pd.DataFrame:
+    """Use the values of header_row_idx as column names and return rows beneath it."""
+    header = block.loc[header_row_idx].astype(str).str.strip().tolist()
+    out = block.loc[header_row_idx + 1 :].copy()
+    out.columns = header
+    out = out.reset_index(drop=True)
+    return out
+
+def _sanitize_date_for_filename(date_str: str) -> str:
+    return str(date_str).replace("/", "-").replace("\\", "-").replace(":", "-")
+
 def FR_Helper(df):
     """
     Split raw FR sheet into two DataFrames:
@@ -49,48 +65,93 @@ def FR_Helper(df):
 
     return cropped, requests_df, decisions_df
 
-def FR_ProcessorV2(df, txt, date_format):
+def FR_ProcessorV2(df: pd.DataFrame, txt: str, date_format: str):
     """
-    Clean FR sheet:
-      - Extract meeting date from text
-      - Split into requests & decisions
-      - Merge on Appx + Org Name
-      - Output unified DataFrame with Amount Requested + Amount Allowed
+    Merge FR sheet's two stacked tables by ['Appx.', 'Org Name']:
+      - Table 1 is preserved (columns/values untouched)
+      - Table 2 contributes 'Amount' and 'Committee Status'
+    Output columns (when present):
+      ['Appx.', 'Org Name', 'Request Type', 'Org Type (year)',
+       'Amount Requested', 'Amount', 'Committee Status',
+       'Funding Source', 'Primary Contact', 'Email Address']
     """
-    # Extract date from text
-    date_regex = r"(\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2})"
-    match = re.search(date_regex, str(txt))
-    date_str = match.group(1) if match else "undated"
-
-    cropped, requests_df, decisions_df = FR_Helper(df)
-
-    if requests_df is None or decisions_df is None:
-        # Fallback: just return cropped
-        return {"FR_clean_" + date_str: cropped}
-
-    # Merge on keys
-    merged = pd.merge(
-        requests_df,
-        decisions_df,
-        on=["Appx", "Org Name"],
-        how="left",
-        suffixes=("", "_dec")
-    )
-
-    # Rename columns
-    if in_df(merged, "Amount Approved"):
-        merged = merged.rename(columns={"Amount Approved": "Amount Allowed"})
-    if in_df(merged, "Committee Status"):
-        merged = merged.drop(columns=["Committee Status"])
-
-    # Reorder columns
-    col_order = [
-        "Appx", "Org Name", "Request Type", "Org Type",
-        "Amount Requested", "Amount Allowed", "Funding Source",
-        "Primary Contact", "Email Address"
-    ]
-    merged = merged[[c for c in col_order if c in merged.columns]]
-
-    safe_date = str(date_str).replace("/", "-").replace("\\", "-").replace(":", "-")
+    # 1) name from date in companion text
+    m = re.search(r"(\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2})", str(txt) or "")
+    safe_date = _sanitize_date_for_filename(m.group(1) if m else "undated")
     out_name = f"FR_clean_{safe_date}"
-    return {out_name: merged}
+
+    if df is None or df.empty:
+        return {out_name: pd.DataFrame()}
+
+    # 2) start scan near first "Appx" occurrence in first column
+    start_idx = 0
+    for i in range(min(len(df), 200)):
+        v = str(df.iloc[i, 0])
+        if "Appx" in v:
+            start_idx = i
+            break
+    sheet = df.iloc[start_idx:].reset_index(drop=True)
+
+    # 3) detect header rows for table1 (requests) and table2 (decisions)
+    t1_hdr = t2_hdr = None
+    scan_limit = min(100, len(sheet))
+    for i in range(scan_limit):
+        row = sheet.iloc[i]
+        if t1_hdr is None and _row_has(["Appx.", "Org Name", "Amount Requested"], row):
+            t1_hdr = i
+            continue
+        # table2 header can vary; accept either Committee Status or Amount
+        if _row_has(["Appx.", "Org Name", "Committee Status"], row) or _row_has(["Appx.", "Org Name", "Amount"], row):
+            t2_hdr = i
+            if t1_hdr is not None and t2_hdr > t1_hdr:
+                break
+
+    # if we can't confidently split, just return the visible portion as-is
+    if t1_hdr is None or t2_hdr is None or t2_hdr <= t1_hdr:
+        return {out_name: sheet}
+
+    # 4) promote headers and slice blocks
+    table1 = _promote_header(sheet, t1_hdr)
+    cutoff = max(0, t2_hdr - t1_hdr - 1)
+    if cutoff > 0:
+        table1 = table1.iloc[:cutoff].copy()
+
+    table2 = _promote_header(sheet, t2_hdr)
+
+    # 5) normalize some header variants for joining/selection
+    # "Appx" variants
+    for tbl in (table1, table2):
+        if "Appx" in tbl.columns and "Appx." not in tbl.columns:
+            tbl.rename(columns={"Appx": "Appx."}, inplace=True)
+        if "Org Type" in tbl.columns and "Org Type (year)" not in tbl.columns:
+            tbl.rename(columns={"Org Type": "Org Type (year)"}, inplace=True)
+        # sometimes 'Email' instead of 'Email Address'
+        if "Email" in tbl.columns and "Email Address" not in tbl.columns:
+            tbl.rename(columns={"Email": "Email Address"}, inplace=True)
+        # amount column on table2 could be 'Amount Approved' -> map to 'Amount'
+        if "Amount Approved" in tbl.columns and "Amount" not in tbl.columns:
+            tbl.rename(columns={"Amount Approved": "Amount"}, inplace=True)
+
+    # 6) build the left (table1) exactly as user wants to preserve
+    left_keep = ["Appx.", "Org Name", "Request Type", "Org Type (year)",
+                 "Amount Requested", "Funding Source", "Primary Contact", "Email Address"]
+    left = table1[[c for c in left_keep if c in table1.columns]].copy()
+
+    # 7) build the right (table2) with only the two fields we want to add
+    right_keep = ["Appx.", "Org Name", "Amount", "Committee Status"]
+    right = table2[[c for c in right_keep if c in table2.columns]].copy()
+
+    # 8) merge (left-join; do not alter left values)
+    join_keys = [k for k in ["Appx.", "Org Name"] if k in left.columns and k in right.columns]
+    if len(join_keys) < 2:
+        merged = left  # cannot join reliably; return table1 only
+    else:
+        merged = left.merge(right, on=join_keys, how="left")
+
+    # 9) final column order
+    final_cols = ["Appx.", "Org Name", "Request Type", "Org Type (year)",
+                  "Amount Requested", "Amount", "Committee Status",
+                  "Funding Source", "Primary Contact", "Email Address"]
+    final = merged[[c for c in final_cols if c in merged.columns]].copy()
+
+    return {out_name: final}
