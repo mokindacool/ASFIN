@@ -72,7 +72,7 @@ def _motion_processor(club_names, names_and_motions):
 
    return rv
 
-def Agenda_Processor(inpt, 
+def Agenda_Processor(inpt: str, 
                      start=['Contingency Funding', 'Contingency'], 
                      end=['Finance Rule', 'Rule Waiver', 'Space Reservation', 'Sponsorship', 'Adjournment', 'ABSA', 'ABSA Appeals'], 
                      identifier='(\w+\s\d{1,2}\w*,\s\d{4})', 

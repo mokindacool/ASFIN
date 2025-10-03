@@ -85,6 +85,7 @@ def process(files: dict[str, pd.DataFrame], process_type: str, reporting=False) 
 # run function that wraps everything together
 # --------
 def run(pull_path: str, push_path: str, process_type: str, reporting=False):
+    print(f"Running pipeline, process type: {process_type}")
     raw_dict = pull(path=pull_path, process_type=process_type, reporting=reporting)
     clean_dict = process(files=raw_dict, process_type=process_type, reporting=reporting)
     push(dfs=clean_dict, path=push_path, process_type=process_type, reporting=reporting)

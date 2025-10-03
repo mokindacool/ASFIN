@@ -243,7 +243,7 @@ class ASUCProcessor:
             if mismatch:
                 names[i] = f"{self.get_file_naming(tag_type = 'Clean')}-{fiscal_year}-{date_formatted}-MISMATCH"
             else:
-                date_formatted = pd.Timestamp(date).strftime("%m/%d/%Y")
+                date_formatted = pd.Timestamp(date).strftime(date_format)
                 fiscal_year = f"FY{str(pd.Timestamp(date).year)[-2:]}" # formatting to FY24, FY25, etc
                 validated_name = f"{self.get_file_naming(tag_type = 'Clean')}-{fiscal_year}-{date_formatted}-{self.get_tagging(tag_type = 'Clean')}" # Contingency draws from ficomm files formatted "Ficomm-date-RF"
                 names[i] = validated_name
