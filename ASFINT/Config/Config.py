@@ -16,7 +16,7 @@ PROCESS_TYPES = {
         }, 
     }, 
     'CONTINGENCY': {
-        'pull': pull_csv, 
+        'pull': pull_txt, 
         'push': push_csv, 
         'process': ASUCProcessor('CONTINGENCY'), 
         'naming': {
@@ -45,7 +45,7 @@ PROCESS_TYPES = {
             'raw tag':"RF", 
             'clean tag':"GF", 
             'clean file name':"Ficomm-Reso", 
-            'date format':"%m/%d/%Y", 
+            'date format':"%m-%d-%Y", 
             'raw name dependency':["Date", "Numbering", "Coding"], 
         }
     }

@@ -1,5 +1,6 @@
 import argparse
 from pathlib import Path
+import sys
 
 from ASFINT.Pipeline.workflow import run
 from ASFINT.Utility.Utils import ensure_folder
@@ -7,6 +8,7 @@ from ASFINT.Utility.Utils import ensure_folder
 def main(manual=None, args=None):
     if manual is not None:
         # Programmatic call, no CLI parsing
+        print(f"Initiating Manual Run...")
         run(
             pull_path=manual.get('pullPath'), 
             push_path=manual.get('pushPath'), 
@@ -47,12 +49,13 @@ def main(manual=None, args=None):
     run(pull_path=str(pull_path), push_path=str(push_path), process_type=args.process, reporting=args.reporting)
 
 if __name__ == "__main__":
-    MANUAL = False
+    MANUAL = True
     if MANUAL:
         settings = {
             'pullPath': '/Users/jonathanngai/Desktop/ASUC Research/ASFIN/files/input', 
             'pushPath': '/Users/jonathanngai/Desktop/ASUC Research/ASFIN/files/output', 
-            'processType': 'FR'
+            'processType': 'CONTINGENCY'
         }
         main(manual=settings)
+        sys.exit(1)
     main()

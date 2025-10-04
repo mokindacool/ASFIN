@@ -56,7 +56,7 @@ def FR_Helper(df, given_start = 'Appx', start_col = 0, adding_end_keyword='END',
     rv = copy[copy.index < ending_row_index]
     return rv
 
-def FR_ProcessorV2(df, txt, date_format="%m-%d-%Y", debug=False):
+def FR_ProcessorV2(df: pd.DataFrame, txt: str, date_format="%m-%d-%Y", debug=False, reporting=False): # make sure that we spit out dates formatted with dashes not slashes distinguishing d, m, y
     """Employs heading_finder to clean data. Takes in the same spreadsheet as a dataframe (to clean) and txt (to search for the date) then returns the relevant info"""
     assert isinstance(df, pd.DataFrame), f'Inputted df is not a dataframe but type {type(df)}'
 
@@ -79,7 +79,7 @@ def FR_ProcessorV2(df, txt, date_format="%m-%d-%Y", debug=False):
         dt = pd.to_datetime(date_str, errors='coerce')  # parse string into timestamp object
         date = dt.strftime(date_format)
     try:
-        rv = FR_Helper(df, alphabet=FY24_Alphabet)
+        rv = FR_Helper(df, alphabet=FY24_Alphabet, reporting=reporting) # added reporting call
     except Exception as e:
         if debug:
             print(f"FR_ProcessorV2 errored on df\n{df}")
