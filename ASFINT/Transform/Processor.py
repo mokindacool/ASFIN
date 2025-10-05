@@ -139,9 +139,59 @@ class ASUCProcessor:
                 out_names.append(self.get_file_naming())
                 self._log(f"[ABSA] Processed '{name}' via {fn.__name__}", reporting)
             except Exception as e:
-                self._log(f"[ABSA] Failed '{name}': {e}", reporting)
-                raise
-        return out_frames, out_names
+                self._log(f"Processing failed for {name}, processing function: {self.get_processing_func().__name__}) : {str(e)}", reporting)
+                raise e
+        return rv, names
+    
+    def contingency(self, txt_lst: Iterable[str], names: Iterable[str], reporting = False) -> list[pd.DataFrame]:
+        """
+        Function that takes in a dictionary of txt files and names then outputs a dictionary of processed txt files with updated names. 
+        Date is appended to updated file names under formatting: %m/%d/%Y.
+        """
+        if isinstance(txt_lst, str): txt_lst = [txt_lst]
+        if isinstance(names, str): names = [names]
+
+        txt_lst = list(txt_lst)
+        names = list(names)
+
+        rv = []
+        for i in range(len(txt_lst)): 
+            txt = txt_lst[i]
+            name = names[i]
+
+            # Name Validation
+            mismatch = False
+            if 'ficomm' not in name.lower() and 'finance committee' not in name.lower():
+                self._log(f"Name mismatch: {name}", reporting)
+                mismatch = True
+
+            # Date Formatting Output
+            t = self.get_type()
+            date_format = self.get_config(process=t, key='Date Format', substitute="%m-%d-%Y")
+
+            # Processing 
+            try:
+                processing_function = self.get_processing_func()
+                output, date = processing_function(txt, date_format=date_format, debug=False)
+                rv.append(output)
+                self._log(f"Successfully processed {name}", reporting)
+            except Exception as e:
+                self._log(f"Processing failed for {name}: {str(e)}", reporting)
+                raise e
+            
+            # Renaming
+            if mismatch:
+                names[i] = f"{self.get_file_naming(tag_type = 'Clean')}-{fiscal_year}-{date_formatted}-MISMATCH"
+            else:
+                date_formatted = pd.Timestamp(date).strftime(date_format)
+                fiscal_year = f"FY{str(pd.Timestamp(date).year)[-2:]}" # formatting to FY24, FY25, etc
+                validated_name = f"{self.get_file_naming(tag_type = 'Clean')}-{fiscal_year}-{date_formatted}-{self.get_tagging(tag_type = 'Clean')}" # Contingency draws from ficomm files formatted "Ficomm-date-RF"
+                names[i] = validated_name
+        return rv, names
+    
+    def oasis(self, dfs: Iterable[pd.DataFrame], names: Iterable[str], reporting = False) -> list[pd.DataFrame]:
+        if isinstance(dfs, pd.DataFrame): dfs = [dfs]
+        if isinstance(names, str): names = [names]
 
     # --------------------------
     # OASIS

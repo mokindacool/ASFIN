@@ -8,7 +8,7 @@ if __name__ == "__main__":
     # Input/output paths relative to CWD
     input_path = base_dir / "files" / "input"
     output_path = base_dir / "files" / "output"
-    process_type = "fr"
+    process_type = "contingency" # change to contingency
 
     # Make sure folders exist
     input_path.mkdir(parents=True, exist_ok=True)

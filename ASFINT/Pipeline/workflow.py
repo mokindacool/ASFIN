@@ -73,5 +73,21 @@ def run(pull_path: str, push_path: str, process_type: str, reporting: bool = Fal
     cleaned = process(files, pt, reporting=reporting)
     push(cleaned, push_path, pt)
 
-    if reporting:
-        print(f"[INFO] Finished pipeline for process_type={process_type}")
+def process(files: dict[str, pd.DataFrame], process_type: str, reporting=False) -> dict[str, pd.DataFrame]:
+    """
+    Calls ASUCProcessor to process a list of files
+    """
+
+    processor = get_pFuncs(process_type=process_type, func='process')
+    df_lst, new_names = processor(files.values(), files.keys(), reporting) # processor will automatically query for keys and values to get names and dataframes
+    return dict(zip(new_names, df_lst))
+
+
+# --------
+# run function that wraps everything together
+# --------
+def run(pull_path: str, push_path: str, process_type: str, reporting=False):
+    print(f"Running pipeline, process type: {process_type}")
+    raw_dict = pull(path=pull_path, process_type=process_type, reporting=reporting)
+    clean_dict = process(files=raw_dict, process_type=process_type, reporting=reporting)
+    push(dfs=clean_dict, path=push_path, process_type=process_type, reporting=reporting)
