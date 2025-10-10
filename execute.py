@@ -49,7 +49,7 @@ def main(manual=None, args=None):
     run(pull_path=str(pull_path), push_path=str(push_path), process_type=args.process, reporting=args.reporting)
 
 if __name__ == "__main__":
-    MANUAL = True
+    MANUAL = False
     if MANUAL:
         settings = {
             'pullPath': '/Users/jonathanngai/Desktop/ASUC Research/ASFIN/files/input', 

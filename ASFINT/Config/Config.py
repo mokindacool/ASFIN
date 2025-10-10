@@ -38,15 +38,15 @@ PROCESS_TYPES = {
         }
     }, 
     'FR': {
-        'pull': pull_csv, 
-        'push': push_csv, 
-        'process': ASUCProcessor('FR'), 
+        'pull': pull_fr,
+        'push': push_csv,
+        'process': ASUCProcessor('FR'),
         'naming': {
-            'raw tag':"RF", 
-            'clean tag':"GF", 
-            'clean file name':"Ficomm-Reso", 
-            'date format':"%m-%d-%Y", 
-            'raw name dependency':["Date", "Numbering", "Coding"], 
+            'raw tag':"RF",
+            'clean tag':"GF",
+            'clean file name':"Ficomm-Reso",
+            'date format':"%m-%d-%Y",
+            'raw name dependency':["Date", "Numbering", "Coding"],
         }
     }
 }

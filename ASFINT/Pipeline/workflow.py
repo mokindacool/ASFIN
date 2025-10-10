@@ -7,13 +7,16 @@ Handles high-level ETL for ABSA, OASIS, FR, Agenda.
 """
 
 import os
-from ASFINT.Config.Config import get_pFuncs, get_naming  # keep as-is
+import pandas as pd
+
+from ASFINT.Config.Config import get_pFuncs, get_naming  
 from ASFINT.Utility.Utils import ensure_folder
 
 
-def pull(path: str, process_type: str):
+def pull(path: str, process_type: str, reporting: bool = False):
     """
-    Load raw files into memory as {filename: DataFrame} (or (DataFrame, text) for FR).
+    Load raw files as {filename: DataFrame} (or (DataFrame, text) for FR).
+    reporting is accepted for symmetry; pullers are called unchanged.
     """
     pull_func = get_pFuncs(process_type, "pull")
     return pull_func(path, process_type)
@@ -39,11 +42,11 @@ def process(files: dict, process_type: str, reporting: bool = False):
     except Exception as e:
         file_list = list(files.keys())
         print(f"[ERROR] Processing failed for process_type={process_type}. Files: {file_list}. Error: {e}")
-        # ... keep your errored-dump code here ...
         return {}
     return results
 
-def push(dfs: dict, path: str, process_type: str):
+
+def push(dfs: dict, path: str, process_type: str, reporting: bool = False):
     """
     Write cleaned DataFrames to disk using configured naming.
     """
@@ -79,7 +82,7 @@ def process(files: dict[str, pd.DataFrame], process_type: str, reporting=False) 
     """
 
     processor = get_pFuncs(process_type=process_type, func='process')
-    df_lst, new_names = processor(files.values(), files.keys(), reporting) # processor will automatically query for keys and values to get names and dataframes
+    df_lst, new_names = processor.dispatch(files.values(), files.keys(), reporting=reporting)
     return dict(zip(new_names, df_lst))
 
 
