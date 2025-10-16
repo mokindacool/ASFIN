@@ -1,6 +1,6 @@
 from ASFINT.Push.pushers import *
 from ASFINT.Pull.pullers import *
-from ASFINT.Transform.processor import ASUCProcessor
+from ASFINT.Transform.Processor import ASUCProcessor
 from typing import Callable
 
 PROCESS_TYPES = {

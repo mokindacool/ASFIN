@@ -16,7 +16,7 @@ if __name__ == "__main__":
 
     # Build the command
     cmd = [
-        "python", "execute.py",
+        "python3", "execute.py",
         "--input", str(input_path),
         "--output", str(output_path),
         "--process", process_type
@@ -28,5 +28,10 @@ if __name__ == "__main__":
     # Check return code
     if result.returncode != 0:
         print(f"run.py exited with code {result.returncode}")
+        print("\nSTDOUT:")
+        print(result.stdout)
+        print("\nSTDERR:")
+        print(result.stderr)
     else:
         print("run.py completed successfully")
+        print(result.stdout)

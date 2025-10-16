@@ -250,19 +250,19 @@ class ASUCProcessor:
     # --------------------------
     # CONTINGENCY
     # --------------------------
-    def contingency(self, dfs: Iterable[pd.DataFrame], names: Iterable[str], reporting: bool = False) -> Tuple[List[pd.DataFrame], List[str]]:
-        dfs = list(dfs)
+    def contingency(self, texts: Iterable[str], names: Iterable[str], reporting: bool = False) -> Tuple[List[pd.DataFrame], List[str]]:
+        texts = list(texts)
         names = list(names)
         names = self.name_clean(names=names, subst_name="Agenda", reporting=reporting)
 
         out_frames: List[pd.DataFrame] = []
         out_names: List[str] = []
 
-        for df, name in zip(dfs, names):
-            assert isinstance(df, pd.DataFrame), "expected a pandas DataFrame"
+        for text, name in zip(texts, names):
+            assert isinstance(text, str), "expected a text string"
             try:
                 fn = self.get_processing_func()
-                processed = fn(df)
+                processed, date = fn(text)
                 out_frames.append(processed)
                 out_names.append(self.get_file_naming())
                 self._log(f"[CONTINGENCY] Processed '{name}' via {fn.__name__}", reporting)
