@@ -223,6 +223,7 @@ class ASUCProcessor:
     def fr(self, dfs: Iterable[Tuple[pd.DataFrame, str]], names: Iterable[str], reporting: bool = False) -> Tuple[List[pd.DataFrame], List[str]]:
         dfs = list(dfs)
         names = list(names)
+        original_names = list(names)  # Store original names before cleaning
         names = self.name_clean(names=names, subst_name="FR", reporting=reporting)
 
         out_frames: List[pd.DataFrame] = []
@@ -236,7 +237,9 @@ class ASUCProcessor:
 
             try:
                 fn = self.get_processing_func()  # FR_ProcessorV2
-                produced: Dict[str, pd.DataFrame] = fn(df, txt, date_format="%Y-%m-%d")
+                # Pass the original filename so output can be "{original_name} Cleaned"
+                orig_name = original_names[idx] if idx < len(original_names) else None
+                produced: Dict[str, pd.DataFrame] = fn(df, txt, date_format="%Y-%m-%d", original_filename=orig_name)
                 for out_name, out_df in produced.items():
                     out_frames.append(out_df)
                     out_names.append(out_name)

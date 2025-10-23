@@ -65,7 +65,7 @@ def FR_Helper(df):
 
     return cropped, requests_df, decisions_df
 
-def FR_ProcessorV2(df: pd.DataFrame, txt: str, date_format: str):
+def FR_ProcessorV2(df: pd.DataFrame, txt: str, date_format: str, original_filename: str = None):
     """
     Merge FR sheet's two stacked tables by ['Appx.', 'Org Name']:
       - Table 1 is preserved (columns/values untouched)
@@ -74,11 +74,30 @@ def FR_ProcessorV2(df: pd.DataFrame, txt: str, date_format: str):
       ['Appx.', 'Org Name', 'Request Type', 'Org Type (year)',
        'Amount Requested', 'Amount', 'Committee Status',
        'Funding Source', 'Primary Contact', 'Email Address']
+
+    Args:
+        df: Input DataFrame
+        txt: Companion text (used for date extraction if original_filename not provided)
+        date_format: Date format string
+        original_filename: Optional original filename. If provided, output will be named
+                          "{original_filename} Cleaned" instead of "FR_clean_{date}"
+
+    Returns:
+        Dict[str, pd.DataFrame]: Dictionary with single key-value pair {out_name: processed_df}
     """
-    # 1) name from date in companion text
-    m = re.search(r"(\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2})", str(txt) or "")
-    safe_date = _sanitize_date_for_filename(m.group(1) if m else "undated")
-    out_name = f"FR_clean_{safe_date}"
+    # 1) determine output name
+    if original_filename:
+        # Use original filename with "Cleaned" suffix
+        # Remove common file extensions and clean up
+        base_name = original_filename.replace(".csv", "").replace(".xlsx", "").replace(".gsheet", "")
+        base_name = re.sub(r"\([\d]+\)", "", base_name).strip()  # Remove (1), (2), etc.
+        base_name = base_name.replace(" - Sheet1", "").replace("- Sheet1", "").strip()
+        out_name = f"{base_name} Cleaned"
+    else:
+        # Fall back to date-based naming
+        m = re.search(r"(\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2})", str(txt) or "")
+        safe_date = _sanitize_date_for_filename(m.group(1) if m else "undated")
+        out_name = f"FR_clean_{safe_date}"
 
     if df is None or df.empty:
         return {out_name: pd.DataFrame()}
@@ -155,3 +174,49 @@ def FR_ProcessorV2(df: pd.DataFrame, txt: str, date_format: str):
     final = merged[[c for c in final_cols if c in merged.columns]].copy()
 
     return {out_name: final}
+
+
+def FR_ProcessorV2_Multi(dfs_with_txt: list, date_format: str = "%Y-%m-%d", original_filenames: list = None):
+    """
+    Process multiple FR files independently and return separate outputs for each.
+
+    Args:
+        dfs_with_txt: List of tuples [(df1, txt1), (df2, txt2), ...]
+        date_format: Format string for dates in output filenames
+        original_filenames: Optional list of original filenames. If provided, outputs will be named
+                           "{original_filename} Cleaned" instead of "FR_clean_{date}"
+
+    Returns:
+        Dict[str, pd.DataFrame]: Dictionary with multiple key-value pairs, one per input file
+                                 {filename1: processed_df1, filename2: processed_df2, ...}
+
+    Example:
+        >>> inputs = [(df1, "Report 01/15/2024"), (df2, "Report 02/20/2024")]
+        >>> results = FR_ProcessorV2_Multi(inputs)
+        >>> # Results: {"FR_clean_2024-01-15": df1_processed, "FR_clean_2024-02-20": df2_processed}
+        >>>
+        >>> # With original filenames:
+        >>> results = FR_ProcessorV2_Multi(inputs, original_filenames=["FR 24_25 F1", "FR 24_25 F2"])
+        >>> # Results: {"FR 24_25 F1 Cleaned": df1_processed, "FR 24_25 F2 Cleaned": df2_processed}
+    """
+    all_results = {}
+
+    for idx, pair in enumerate(dfs_with_txt):
+        if not isinstance(pair, (tuple, list)) or len(pair) != 2:
+            raise ValueError(f"Expected (df, txt) tuple at index {idx}, got {type(pair)}")
+
+        df, txt = pair
+
+        if not isinstance(df, pd.DataFrame):
+            raise ValueError(f"Expected pandas DataFrame at index {idx}, got {type(df)}")
+
+        # Get original filename if provided
+        orig_name = original_filenames[idx] if original_filenames and idx < len(original_filenames) else None
+
+        # Process each file individually
+        result = FR_ProcessorV2(df, txt, date_format, original_filename=orig_name)
+
+        # Merge into the combined results dictionary
+        all_results.update(result)
+
+    return all_results
