@@ -16,15 +16,15 @@ PROCESS_TYPES = {
         }, 
     }, 
     'CONTINGENCY': {
-        'pull': pull_txt, 
-        'push': push_csv, 
-        'process': ASUCProcessor('CONTINGENCY'), 
+        'pull': pull_txt,
+        'push': push_csv,
+        'process': ASUCProcessor('CONTINGENCY'),
         'naming': {
-            'raw tag': "RF", 
-            'clean tag': "GF", 
-            'clean file name': "ABSA", 
+            'raw tag': "RF",
+            'clean tag': "GF",
+            'clean file name': "ABSA",
             'raw name dependency': ["Date"],
-        }, 
+        },
     }, 
     'OASIS': {
         'pull': pull_csv, 
@@ -47,6 +47,18 @@ PROCESS_TYPES = {
             'clean file name':"Ficomm-Reso",
             'date format':"%m-%d-%Y",
             'raw name dependency':["Date", "Numbering", "Coding"],
+        }
+    },
+    'RECONCILE': {
+        'pull': pull_reconcile,
+        'push': push_csv,
+        'process': ASUCProcessor('RECONCILE'),
+        'naming': {
+            'raw tag':"RF",
+            'clean tag':"GF",
+            'clean file name':"Reconciled",
+            'date format':"%Y-%m-%d",
+            'raw name dependency':[],
         }
     }
 }

@@ -88,3 +88,50 @@ def pull_fr(path, process_type):
         out[p.stem] = (df, text)
 
     return out
+
+def pull_reconcile(path, process_type):
+    """
+    Load FR and Agenda CSV files for reconciliation.
+    - Looks for files matching patterns: '*Cleaned*.csv' (FR) and '*Agenda*.csv' (Agenda)
+    - Returns {'fr': fr_df, 'agenda': agenda_df}
+    - Raises error if either file type is not found
+    """
+    p = Path(path)
+
+    if not p.exists():
+        raise FileNotFoundError(f"Input path does not exist: {p}")
+
+    if not p.is_dir():
+        raise ValueError(f"Reconcile process requires a directory path, got file: {p}")
+
+    # Find FR file (contains "Cleaned" in filename)
+    fr_files = list(p.glob("*Cleaned*.csv"))
+    if not fr_files:
+        raise FileNotFoundError(f"No FR file found in {p}. Expected file with 'Cleaned' in name.")
+
+    # Find Agenda file (contains "Agenda" in filename)
+    agenda_files = list(p.glob("*Agenda*.csv"))
+    if not agenda_files:
+        raise FileNotFoundError(f"No Agenda file found in {p}. Expected file with 'Agenda' in name.")
+
+    # Use the most recent file if multiple matches
+    fr_file = sorted(fr_files, key=lambda x: x.stat().st_mtime)[-1]
+    agenda_file = sorted(agenda_files, key=lambda x: x.stat().st_mtime)[-1]
+
+    print(f"[RECONCILE PULL] Using FR file: {fr_file.name}")
+    print(f"[RECONCILE PULL] Using Agenda file: {agenda_file.name}")
+
+    # Load the dataframes
+    # Try reading with default header first (for new format)
+    # If 'Org Name' column is missing, try header=1 (for old format with blank header row)
+    fr_df = pd.read_csv(fr_file)
+    if 'Org Name' not in fr_df.columns:
+        print(f"[RECONCILE PULL] Warning: 'Org Name' not found in header, trying header=1")
+        fr_df = pd.read_csv(fr_file, header=1)
+    agenda_df = pd.read_csv(agenda_file)
+
+    # Extract FR filename stem (without extension) for use in output naming
+    fr_filename = fr_file.stem
+
+    # Return as tuple (fr_df, agenda_df, fr_filename) to pass filename info
+    return {'reconcile': (fr_df, agenda_df, fr_filename)}

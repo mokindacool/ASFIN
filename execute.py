@@ -33,7 +33,7 @@ def main(manual=None, args=None):
         "--reporting", "-r", type=bool, default=True,
         help="Toggling debugging prints"
     )
-    
+
     args = parser.parse_args()
 
     # Resolve paths

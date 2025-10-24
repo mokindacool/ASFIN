@@ -125,9 +125,21 @@ def FR_ProcessorV2(df: pd.DataFrame, txt: str, date_format: str, original_filena
             if t1_hdr is not None and t2_hdr > t1_hdr:
                 break
 
-    # if we can't confidently split, just return the visible portion as-is
-    if t1_hdr is None or t2_hdr is None or t2_hdr <= t1_hdr:
+    # if we can't find table headers, return the sheet as-is
+    if t1_hdr is None:
         return {out_name: sheet}
+
+    # if there's only one table (no table2), promote table1's header and return it
+    if t2_hdr is None or t2_hdr <= t1_hdr:
+        table1 = _promote_header(sheet, t1_hdr)
+        # Normalize header variants
+        if "Appx" in table1.columns and "Appx." not in table1.columns:
+            table1.rename(columns={"Appx": "Appx."}, inplace=True)
+        if "Org Type" in table1.columns and "Org Type (year)" not in table1.columns:
+            table1.rename(columns={"Org Type": "Org Type (year)"}, inplace=True)
+        if "Email" in table1.columns and "Email Address" not in table1.columns:
+            table1.rename(columns={"Email": "Email Address"}, inplace=True)
+        return {out_name: table1}
 
     # 4) promote headers and slice blocks
     table1 = _promote_header(sheet, t1_hdr)

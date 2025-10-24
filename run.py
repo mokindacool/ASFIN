@@ -6,7 +6,7 @@ if __name__ == "__main__":
     base_dir = Path.cwd()
 
     # Input/output paths relative to CWD
-    input_path = base_dir / "files" / "input"
+    input_path = base_dir / "files" / "agendainput"
     output_path = base_dir / "files" / "output"
     process_type = "contingency" # change to contingency
 
