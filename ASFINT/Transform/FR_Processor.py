@@ -73,19 +73,66 @@ def FR_ProcessorV2(df: pd.DataFrame, txt: str, date_format: str, original_filena
     Output columns (when present):
       ['Appx.', 'Org Name', 'Request Type', 'Org Type (year)',
        'Amount Requested', 'Amount', 'Committee Status',
-       'Funding Source', 'Primary Contact', 'Email Address']
+       'Funding Source', 'Primary Contact', 'Email Address', 'Date']
 
     Args:
         df: Input DataFrame
         txt: Companion text (used for date extraction if original_filename not provided)
-        date_format: Date format string
+        date_format: Date format string (e.g., "%m/%d/%Y")
         original_filename: Optional original filename. If provided, output will be named
                           "{original_filename} Cleaned" instead of "FR_clean_{date}"
 
     Returns:
         Dict[str, pd.DataFrame]: Dictionary with single key-value pair {out_name: processed_df}
     """
-    # 1) determine output name
+    # 1) Extract date from the input data
+    # The date can appear in row 1 OR row 2 in format: "YYYY-MM-DD Finance Committee Agenda and Minutes"
+    # Some files have a blank row 1, others start with the date in row 1
+    extracted_date = None
+    if df is not None and not df.empty:
+        # Check row 1 (index 0) and row 2 (index 1) for date pattern
+        rows_to_check = []
+        if len(df) > 0:
+            rows_to_check.append(df.iloc[0])
+        if len(df) > 1:
+            rows_to_check.append(df.iloc[1])
+
+        for row in rows_to_check:
+            row_values = row.astype(str).tolist()
+            for val in row_values:
+                # Look for YYYY-MM-DD pattern
+                date_match = re.search(r'(\d{4}-\d{2}-\d{2})', val)
+                if date_match:
+                    try:
+                        # Parse and reformat to the desired format (e.g., MM/DD/YYYY)
+                        date_obj = datetime.strptime(date_match.group(1), "%Y-%m-%d")
+                        extracted_date = date_obj.strftime(date_format)
+                        break
+                    except ValueError:
+                        continue
+            if extracted_date:
+                break
+
+    # if prev case doesnt work: try to extract from txt parameter
+    if extracted_date is None and txt:
+        m = re.search(r"(\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2})", str(txt))
+        if m:
+            try:
+                # Try to parse the found date
+                date_str = m.group(1)
+                if "/" in date_str:
+                    date_obj = datetime.strptime(date_str, "%m/%d/%Y")
+                else:
+                    date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+                extracted_date = date_obj.strftime(date_format)
+            except ValueError:
+                pass
+
+    # If still no date found, use "undated"
+    if extracted_date is None:
+        extracted_date = "undated"
+
+    # 2) determine output name
     if original_filename:
         # Use original filename with "Cleaned" suffix
         # Remove common file extensions and clean up
@@ -95,8 +142,7 @@ def FR_ProcessorV2(df: pd.DataFrame, txt: str, date_format: str, original_filena
         out_name = f"{base_name} Cleaned"
     else:
         # Fall back to date-based naming
-        m = re.search(r"(\d{2}/\d{2}/\d{4}|\d{4}-\d{2}-\d{2})", str(txt) or "")
-        safe_date = _sanitize_date_for_filename(m.group(1) if m else "undated")
+        safe_date = _sanitize_date_for_filename(extracted_date)
         out_name = f"FR_clean_{safe_date}"
 
     if df is None or df.empty:
@@ -139,6 +185,8 @@ def FR_ProcessorV2(df: pd.DataFrame, txt: str, date_format: str, original_filena
             table1.rename(columns={"Org Type": "Org Type (year)"}, inplace=True)
         if "Email" in table1.columns and "Email Address" not in table1.columns:
             table1.rename(columns={"Email": "Email Address"}, inplace=True)
+        # Add Date column
+        table1['Date'] = extracted_date
         return {out_name: table1}
 
     # 4) promote headers and slice blocks
@@ -179,10 +227,13 @@ def FR_ProcessorV2(df: pd.DataFrame, txt: str, date_format: str, original_filena
     else:
         merged = left.merge(right, on=join_keys, how="left")
 
-    # 9) final column order
+    # 9) Add Date column to the merged data
+    merged['Date'] = extracted_date
+
+    # 10) final column order (including Date at the end)
     final_cols = ["Appx.", "Org Name", "Request Type", "Org Type (year)",
                   "Amount Requested", "Amount", "Committee Status",
-                  "Funding Source", "Primary Contact", "Email Address"]
+                  "Funding Source", "Primary Contact", "Email Address", "Date"]
     final = merged[[c for c in final_cols if c in merged.columns]].copy()
 
     return {out_name: final}

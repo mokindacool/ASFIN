@@ -57,6 +57,11 @@ def pull_fr(path, process_type):
     - Pairs .csv files with matching .txt files by stem name
     - If no matching .txt exists, uses empty string as text
     - Returns {stem: (DataFrame, text)}
+
+    IMPORTANT: FR CSVs are read with header=None because:
+    - Row 1 is blank/separators
+    - Row 2 contains the date (YYYY-MM-DD Finance Committee...)
+    - The actual data table headers start later
     """
     p = Path(path)
 
@@ -67,7 +72,8 @@ def pull_fr(path, process_type):
     if p.is_dir():
         # Find all CSV files
         for csv_file in sorted(p.glob("*.csv")):
-            df = pd.read_csv(csv_file)
+            # Read FR CSV with no header (date is in row 2, table headers come later)
+            df = pd.read_csv(csv_file, header=None)
             # Look for matching TXT file
             txt_file = csv_file.with_suffix(".txt")
             if txt_file.exists():
@@ -78,7 +84,8 @@ def pull_fr(path, process_type):
     else:
         if p.suffix.lower() != ".csv":
             raise ValueError(f"Expected a .csv file, got: {p.name}")
-        df = pd.read_csv(p)
+        # Read FR CSV with no header (date is in row 2, table headers come later)
+        df = pd.read_csv(p, header=None)
         # Look for matching TXT file
         txt_file = p.with_suffix(".txt")
         if txt_file.exists():

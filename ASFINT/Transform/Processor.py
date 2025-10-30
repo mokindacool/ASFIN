@@ -248,7 +248,8 @@ class ASUCProcessor:
                 fn = self.get_processing_func()  # FR_ProcessorV2
                 # Pass the original filename so output can be "{original_name} Cleaned"
                 orig_name = original_names[idx] if idx < len(original_names) else None
-                produced: Dict[str, pd.DataFrame] = fn(df, txt, date_format="%Y-%m-%d", original_filename=orig_name)
+                # Use MM/DD/YYYY format to match Agenda processor output for reconciliation
+                produced: Dict[str, pd.DataFrame] = fn(df, txt, date_format="%m/%d/%Y", original_filename=orig_name)
                 for out_name, out_df in produced.items():
                     out_frames.append(out_df)
                     out_names.append(out_name)
