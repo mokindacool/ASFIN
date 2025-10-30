@@ -86,30 +86,42 @@ def FR_ProcessorV2(df: pd.DataFrame, txt: str, date_format: str, original_filena
         Dict[str, pd.DataFrame]: Dictionary with single key-value pair {out_name: processed_df}
     """
     # 1) Extract date from the input data
-    # The date can appear in row 1 OR row 2 in format: "YYYY-MM-DD Finance Committee Agenda and Minutes"
-    # Some files have a blank row 1, others start with the date in row 1
+    # The date can appear in the first several rows in formats like:
+    # - "YYYY-MM-DD Finance Committee Agenda and Minutes"
+    # - "Senate Finance Resolution 2024/2025 Fall Week MM/DD/YYYY"
+    # Check the first 10 rows to find the date
     extracted_date = None
     if df is not None and not df.empty:
-        # Check row 1 (index 0) and row 2 (index 1) for date pattern
+        # Check first 10 rows for date pattern
         rows_to_check = []
-        if len(df) > 0:
-            rows_to_check.append(df.iloc[0])
-        if len(df) > 1:
-            rows_to_check.append(df.iloc[1])
+        for i in range(min(10, len(df))):
+            rows_to_check.append(df.iloc[i])
 
         for row in rows_to_check:
             row_values = row.astype(str).tolist()
             for val in row_values:
-                # Look for YYYY-MM-DD pattern
-                date_match = re.search(r'(\d{4}-\d{2}-\d{2})', val)
+                # Look for MM/DD/YYYY pattern first (more common in FR files)
+                date_match = re.search(r'(\d{2}/\d{2}/\d{4})', val)
                 if date_match:
                     try:
-                        # Parse and reformat to the desired format (e.g., MM/DD/YYYY)
-                        date_obj = datetime.strptime(date_match.group(1), "%Y-%m-%d")
+                        # Parse and reformat to the desired format
+                        date_obj = datetime.strptime(date_match.group(1), "%m/%d/%Y")
                         extracted_date = date_obj.strftime(date_format)
                         break
                     except ValueError:
-                        continue
+                        pass
+
+                # If MM/DD/YYYY not found, try YYYY-MM-DD pattern
+                if not extracted_date:
+                    date_match = re.search(r'(\d{4}-\d{2}-\d{2})', val)
+                    if date_match:
+                        try:
+                            # Parse and reformat to the desired format
+                            date_obj = datetime.strptime(date_match.group(1), "%Y-%m-%d")
+                            extracted_date = date_obj.strftime(date_format)
+                            break
+                        except ValueError:
+                            pass
             if extracted_date:
                 break
 

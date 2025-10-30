@@ -6,15 +6,15 @@ from datetime import datetime
 from ASFINT.Utility.Cleaning import in_df, is_type
 from ASFINT.Utility.Utils import column_converter
 
-def _find_chunk_pattern(starts, ends, end_prepattern = '\d\.\s'):
+def _find_chunk_pattern(starts, ends, end_prepattern = '\d+\s'):
       """
       Extracts a chunk of text from 'inpt' text based on start and end keywords.
       starts (list[str]): List of keywords to start the chunk of text we want to extract
       ends (list[str]): List of keywords to end the chunk of text we want to extract
       end_prepattern (str): Regex pattern to append before every end keyword
-         - for example meeting agendas are structure 1. Contingency, 2. Sponsorship, etc so if you want the chunk to end at 'Sponsorship' you add in a ending prepattern to catch the '2. '.
-      
-      example pattern to constryct: Contingency\s*([\s\S]*)(?:\d\.\sAdjournment|\d\.\sSponsorship)
+         - for example meeting agendas are structure 1 Contingency, 2 Sponsorship (periods removed during preprocessing), so if you want the chunk to end at 'Sponsorship' you add in a ending prepattern to catch the '2 '.
+
+      example pattern to construct: Contingency\s*([\s\S]*)(?:\d+\sAdjournment|\d+\sSponsorship)
       
       """
       assert len(starts) != 0, 'starts is an empty list'
@@ -102,22 +102,27 @@ def _motion_processor(club_names, names_and_motions):
 
 def inpt_cleaner(inpt: str):
    inpt = re.sub(r"\(\$?\d+,?\d*\.?\d*\)", "", inpt)
+   # Periods are already removed at the top level of Agenda_Processor
    return inpt
 
 
-def Agenda_Processor(inpt: str, 
-                     start=['Contingency', 'Finance Rule', 'Rule Waiver', 'Space Reservation'], 
-                     end=['Finance Rule', 'Rule Waiver', 'Space Reservation', 'Sponsorship', 'Adjournment', 'ABSA', 'ABSA Appeals'], 
-                     identifier='(\w+\s\d{1,2}\w*,\s\d{4})', 
-                     date_format="%m/%d/%Y", 
+def Agenda_Processor(inpt: str,
+                     start=['Contingency', 'Finance Rule', 'Rule Waiver', 'Space Reservation'],
+                     end=['Finance Rule', 'Rule Waiver', 'Space Reservation', 'Sponsorship', 'Adjournment', 'ABSA', 'ABSA Appeals'],
+                     identifier='(\w+\s\d{1,2}\w*,\s\d{4})',
+                     date_format="%m/%d/%Y",
                      debug=True):
    """
-   You have a chunk of text from the document you want to turn into a table and an identifier for that chunk of text (eg. just the Contingency Funding section and the identifeir is the date). 
+   You have a chunk of text from the document you want to turn into a table and an identifier for that chunk of text (eg. just the Contingency Funding section and the identifeir is the date).
    Thus function extracts the chunk and converts it into a tabular format.
 
    input (str): The raw text of the agenda to be processed. Usually a .txt file
    identifier (str): Regex pattern to extract a certain piece of text from inpt as the identifier for the chunk extracted from inpt
    """
+   # Remove periods only from numbered list markers (e.g., "1." -> "1 "), preserving decimal numbers like "$43.72"
+   # Pattern: digit(s) followed by period followed by whitespace (list markers)
+   inpt = re.sub(r'(\d+)\.(\s)', r'\1\2', inpt)
+
    date_match = re.findall(rf"{identifier}", inpt)
    if not date_match:
       print(f"Agenda_Processor could not find date on agenda doc")
@@ -132,24 +137,24 @@ def Agenda_Processor(inpt: str,
       start_end_dict[start[i]] = end[i:]
    list_of_dfs = []
    for s in start_end_dict:
-      if re.findall(rf"\d\.\s{s}", inpt):
+      if re.findall(rf"\d+\s{s}", inpt):
 
 
          pattern = _find_chunk_pattern(starts = [s], ends = start_end_dict[s])
          if debug:
             print(f"Agenda Processor Pattern: {pattern}")
-         
+
          chunk = re.findall(rf"{pattern}", inpt)[0]
          chunk = inpt_cleaner(chunk)
          print(f"chunk: {chunk}")
 
-         valid_name_chars = r'\w\s\-\_\*\&\%\$\+\#\@\!\(\)\,\'\"\[\]' #seems to perform better with explicit handling for special characters? eg. for 'Telegraph+' we add the plus sign so regex will pick it up. Added \[\] for brackets
-         club_name_pattern = f'\d+\.\s(?!Motion|Seconded)([{valid_name_chars}]+)\n(?=\s+\n|\s+\d\.)' #first part looks for a date, then excluding motion and seconded, then club names
+         valid_name_chars = r'\w\s\-\_\*\&\%\$\+\#\@\!\(\)\,\'\"\[\]\.' #seems to perform better with explicit handling for special characters? eg. for 'Telegraph+' we add the plus sign so regex will pick it up. Added \[\] for brackets and \. for periods in names like "Inc."
+         club_name_pattern = f'\d+\s(?!Motion|Seconded)([{valid_name_chars}]+?)(?=\n)' #matches numbered items that are club names (not Motion/Seconded), capturing until newline
          club_names = list(re.findall(club_name_pattern, chunk)) #just matches club names --> list of tuples of club names
          if debug:
             print(f"Agenda Processor Club Names: {club_names}")
 
-         names_and_motions = list(re.findall(rf'\d+\.\s(.+)\n?', chunk)) #pattern matches every single line that comes in the format "<digit>.<space><anything>""
+         names_and_motions = list(re.findall(rf'\d+\s(.+)\n?', chunk)) #pattern matches every single line that comes in the format "<digit><space><anything>""
          motion_dict = _motion_processor(club_names, names_and_motions)
          if debug:
             print(f"Agenda Processor Motion Dict: {motion_dict}")
@@ -165,7 +170,7 @@ def Agenda_Processor(inpt: str,
                
             else:
                sub_motions = " ".join(motion_dict[name]) #flattens list of string motions into one massive continuous string containing all motions
-               # print(f'sub-motions: {sub_motions}')
+               print(f'sub-motions: {sub_motions}')
 
                #for handling multiple conflicting motions (which shouldn't even happen) we record rejections > temporary tabling > approvals > no input
                #when in doubt assume rejection
@@ -213,8 +218,11 @@ def Agenda_Processor(inpt: str,
          )
     
          list_of_dfs.append(rv)
-   # print(f"Agenda Processor Final df: {rv}")
+   print(f"Agenda Processor Final df: {rv}")
    rv = pd.concat(list_of_dfs)
-   rv["Org Name"] = rv["Org Name"].str.replace("*", "")
+   # Clean up organization names: remove asterisks and trailing commas/whitespace
+   rv["Org Name"] = rv["Org Name"].str.replace("*", "", regex=False)
+   rv["Org Name"] = rv["Org Name"].str.replace(r',\s*$', '', regex=True)
+   rv["Org Name"] = rv["Org Name"].str.strip()
 
    return rv, date
