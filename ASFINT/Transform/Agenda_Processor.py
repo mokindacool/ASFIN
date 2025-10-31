@@ -148,7 +148,7 @@ def Agenda_Processor(inpt: str,
          chunk = inpt_cleaner(chunk)
          print(f"chunk: {chunk}")
 
-         valid_name_chars = r'\w\s\-\_\*\&\%\$\+\#\@\!\(\)\,\'\"\[\]\.' #seems to perform better with explicit handling for special characters? eg. for 'Telegraph+' we add the plus sign so regex will pick it up. Added \[\] for brackets and \. for periods in names like "Inc."
+         valid_name_chars = r'\w\s\-\_\*\&\%\$\+\#\@\!\(\)\,\'\"\[\]\.:' #seems to perform better with explicit handling for special characters? eg. for 'Telegraph+' we add the plus sign so regex will pick it up. Added \[\] for brackets and \. for periods in names like "Inc."
          club_name_pattern = f'\d+\s(?!Motion|Seconded)([{valid_name_chars}]+?)(?=\n)' #matches numbered items that are club names (not Motion/Seconded), capturing until newline
          club_names = list(re.findall(club_name_pattern, chunk)) #just matches club names --> list of tuples of club names
          if debug:
