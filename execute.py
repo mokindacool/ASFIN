@@ -54,7 +54,7 @@ if __name__ == "__main__":
         settings = {
             'pullPath': '/Users/jonathanngai/Desktop/ASUC Research/ASFIN/files/input', 
             'pushPath': '/Users/jonathanngai/Desktop/ASUC Research/ASFIN/files/output', 
-            'processType': 'CONTINGENCY'
+            'processType': 'ABSA'
         }
         main(manual=settings)
         sys.exit(1)

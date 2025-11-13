@@ -141,7 +141,7 @@ class ASUCProcessor:
             except Exception as e:
                 self._log(f"Processing failed for {name}, processing function: {self.get_processing_func().__name__}) : {str(e)}", reporting)
                 raise e
-        return rv, names
+        return out_frames, out_names
     
     def contingency(self, txt_lst: Iterable[str], names: Iterable[str], reporting = False) -> list[pd.DataFrame]:
         """
