@@ -279,9 +279,10 @@ class ASUCProcessor:
                 processed, date = fn(text)
                 out_frames.append(processed)
 
-                # Extract date from original filename (e.g., "2024-11-04 Finance Committee Agenda & Minutes.txt")
+                # Extract date from original filename (e.g., "2024-11-04" or "2020-2-3")
                 orig_name = original_names[idx] if idx < len(original_names) else name
-                date_match = re.search(r'(\d{4}-\d{2}-\d{2})', orig_name)
+                # Match YYYY-MM-DD or YYYY-M-D (with or without leading zeros)
+                date_match = re.search(r'(\d{4}-\d{1,2}-\d{1,2})', orig_name)
                 if date_match:
                     file_date = date_match.group(1)
                     output_name = f"{file_date} {self.get_file_naming()}"

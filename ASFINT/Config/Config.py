@@ -22,7 +22,7 @@ PROCESS_TYPES = {
         'naming': {
             'raw tag': "RF",
             'clean tag': "GF",
-            'clean file name': "ABSA",
+            'clean file name': "Agenda",
             'raw name dependency': ["Date"],
         },
     }, 

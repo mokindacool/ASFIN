@@ -265,9 +265,10 @@ def _scan_outputs_by_date(output_dir: str) -> Dict[str, Dict[str, Tuple[str, pd.
             # Categorize as FR or Agenda based on filename
             filename_stem = csv_file.stem  # filename without extension
 
-            if 'Cleaned' in csv_file.name and ('FR' in csv_file.name or 'fr' in csv_file.name.lower()):
+            # Accept both FR and SR files as finance resolution files
+            if 'Cleaned' in csv_file.name and ('FR' in csv_file.name or 'SR' in csv_file.name or 'fr' in csv_file.name.lower() or 'sr' in csv_file.name.lower()):
                 files_by_date[date]['fr'] = (filename_stem, df)
-                print(f"  [FR]     {csv_file.name} → Date: {date}")
+                print(f"  [FR/SR]  {csv_file.name} → Date: {date}")
             elif 'Agenda' in csv_file.name:
                 files_by_date[date]['agenda'] = (filename_stem, df)
                 print(f"  [AGENDA] {csv_file.name} → Date: {date}")
