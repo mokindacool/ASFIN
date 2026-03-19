@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     Application settings loaded from environment variables.
 
     Expected:
-      DATABASE_URL (postgresql://asfint:asfint@host:5432/asfint)
+      DATABASE_URL (postgresql://asfint:asfint@localhost:5432/asfint)
     """
     DATABASE_URL: str
 
