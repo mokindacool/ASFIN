@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, FastAPI, HTTPException
-from sqlalchemy import Session
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 from pydantic import BaseModel 
 from typing import Optional  
 from uuid import UUID
@@ -35,8 +35,8 @@ def get_datasets(db: Session = Depends(get_db)):
     return service.list(db)
 
 @router.patch("/api/router/datasets/{id}")
-def update_dataset(dataset_id: UUID, body: DatasetUpdate, db: Session = Depends(get_db)):
-    dataset = service.update(db, dataset_id, body)
+def update_dataset(id: UUID, body: DatasetUpdate, db: Session = Depends(get_db)):
+    dataset = service.update(db, id, body)
     if not dataset:
         raise HTTPException(status_code=404, detail="Dataset not found")
     return dataset
