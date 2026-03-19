@@ -1,12 +1,19 @@
-from pydantic_settings import BaseSettings
-
+from __future__ import annotations
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "postgresql://asfint:asfint@localhost:5432/asfint"
-    DATA_ROOT: str = "/data"
+    """
+    Application settings loaded from environment variables.
 
-    class Config:
-        env_file = ".env"
+    Expected:
+      DATABASE_URL (postgresql://asfint:asfint@host:5432/asfint)
+    """
+    DATABASE_URL: str
 
+    model_config = SettingsConfigDict(
+        env_file=".env",  # repo root .env
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
 settings = Settings()
