@@ -6,6 +6,41 @@ from fastapi import UploadFile
 DATA_ROOT = Path(os.getenv("DATA_ROOT", "/data"))
 
 
+class StorageService:
+    """
+    Centralises all file-path construction for raw and clean zones.
+
+    Switching to S3 later means changing only this class — callers stay the same.
+    """
+
+    @staticmethod
+    def raw_path(dataset_id: int, ingestion_id: int, ext: str) -> Path:
+        """Canonical path for a raw ingestion file: /data/raw/{dataset_id}/{ingestion_id}/original.{ext}"""
+        return DATA_ROOT / "raw" / str(dataset_id) / str(ingestion_id) / f"original{ext}"
+
+    @staticmethod
+    def clean_dir(dataset_id: int, ingestion_id: int) -> Path:
+        """Canonical directory for Parquet clean output: /data/clean/{dataset_id}/{ingestion_id}/"""
+        return DATA_ROOT / "clean" / str(dataset_id) / str(ingestion_id)
+
+    @classmethod
+    def ensure_raw_dir(cls, dataset_id: int, ingestion_id: int) -> Path:
+        path = DATA_ROOT / "raw" / str(dataset_id) / str(ingestion_id)
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    @classmethod
+    def ensure_clean_dir(cls, dataset_id: int, ingestion_id: int) -> Path:
+        path = cls.clean_dir(dataset_id, ingestion_id)
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+
+# ---------------------------------------------------------------------------
+# Legacy helpers — kept for the dataset-upload feature (Week 2)
+# ---------------------------------------------------------------------------
+
+
 def _raw_dir(dataset_id: int) -> Path:
     path = DATA_ROOT / "raw" / str(dataset_id)
     path.mkdir(parents=True, exist_ok=True)
@@ -13,11 +48,7 @@ def _raw_dir(dataset_id: int) -> Path:
 
 
 async def save_upload(dataset_id: int, file: UploadFile) -> tuple[Path, int]:
-    """Write an uploaded file to /data/raw/{dataset_id}/{filename}.
-
-    Returns (stored_path, file_size_bytes).
-    Streams in 64 KB chunks to avoid loading the whole file into memory.
-    """
+    """Write an uploaded file to /data/raw/{dataset_id}/{filename}. Returns (path, size)."""
     dest = _raw_dir(dataset_id) / file.filename
     size = 0
     with open(dest, "wb") as f:

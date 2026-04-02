@@ -1,17 +1,19 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
-from app.api.routers import datasets
+from app.api.routers import datasets, ingestions, process_types
 from app.core.database import check_connection, engine
 from app.core.models import Base
+
+STATIC_DIR = Path(__file__).parent.parent / "static"
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create tables on startup.
-    # Alembic migrations (added by Jeffrey in a later sprint) will replace this.
     Base.metadata.create_all(bind=engine)
     yield
 
@@ -19,25 +21,26 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="ASFINT Data Platform", lifespan=lifespan)
 
 app.include_router(datasets.router)
+app.include_router(ingestions.router)
+app.include_router(process_types.router)
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+@app.get("/", include_in_schema=False)
+def ui():
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/healthz")
 def healthz():
-    """
-    Liveness check.
-    Returns 200 if the API process is running.
-    Does not check any dependencies.
-    """
+    """Liveness check. Returns 200 if the API process is running."""
     return {"status": "ok"}
 
 
 @app.get("/readyz")
 def readyz():
-    """
-    Readiness check.
-    Returns 200 if the API can reach the database.
-    Returns 503 if the database is unreachable.
-    """
+    """Readiness check. Returns 503 if the database is unreachable."""
     if check_connection():
         return {"status": "ok", "database": "reachable"}
     return JSONResponse(

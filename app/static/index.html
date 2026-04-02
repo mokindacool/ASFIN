@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ASFINT Data Platform</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f4f5f7;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1a1a2e;
+      color: #fff;
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header h1 { font-size: 1.2rem; font-weight: 600; letter-spacing: 0.02em; }
+    header span { font-size: 0.8rem; opacity: 0.5; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      max-width: 1100px;
+      margin: 32px auto;
+      padding: 0 24px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 24px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+    }
+    .card h2 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #555;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    label {
+      display: block;
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: #444;
+      margin-bottom: 5px;
+      margin-top: 14px;
+    }
+    label:first-of-type { margin-top: 0; }
+
+    input[type="text"], textarea, select {
+      width: 100%;
+      padding: 9px 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      color: #1a1a2e;
+      background: #fafafa;
+      transition: border-color 0.15s;
+      outline: none;
+    }
+    input[type="text"]:focus, textarea:focus, select:focus {
+      border-color: #4a6fa5;
+      background: #fff;
+    }
+    textarea { resize: vertical; min-height: 70px; }
+
+    .file-drop {
+      border: 2px dashed #ddd;
+      border-radius: 8px;
+      padding: 28px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      background: #fafafa;
+    }
+    .file-drop:hover, .file-drop.dragover {
+      border-color: #4a6fa5;
+      background: #f0f4ff;
+    }
+    .file-drop input { display: none; }
+    .file-drop .icon { font-size: 2rem; margin-bottom: 8px; }
+    .file-drop p { font-size: 0.85rem; color: #777; }
+    .file-drop .chosen { font-size: 0.85rem; color: #4a6fa5; font-weight: 500; margin-top: 6px; }
+
+    button[type="submit"] {
+      margin-top: 18px;
+      width: 100%;
+      padding: 10px;
+      background: #1a1a2e;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button[type="submit"]:hover { background: #2e2e50; }
+    button[type="submit"]:disabled { background: #aaa; cursor: not-allowed; }
+
+    .toast {
+      display: none;
+      margin-top: 14px;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+    .toast.success { background: #e8f5e9; color: #2e7d32; display: block; }
+    .toast.error   { background: #fdecea; color: #c62828; display: block; }
+
+    /* Dataset list */
+    .ds-list { margin-top: 4px; }
+    .ds-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-radius: 7px;
+      border: 1px solid #eee;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .ds-item:hover { border-color: #4a6fa5; background: #f5f8ff; }
+    .ds-item.selected { border-color: #4a6fa5; background: #eef2ff; }
+    .ds-item .name { font-size: 0.9rem; font-weight: 500; }
+    .ds-item .meta { font-size: 0.75rem; color: #888; margin-top: 2px; }
+    .badge {
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 99px;
+      background: #e8eaf6;
+      color: #3949ab;
+      white-space: nowrap;
+    }
+    .empty { color: #aaa; font-size: 0.85rem; text-align: center; padding: 20px 0; }
+
+    /* Ingestion list */
+    .ing-item {
+      padding: 10px 12px;
+      border-radius: 7px;
+      border: 1px solid #eee;
+      margin-bottom: 8px;
+      font-size: 0.85rem;
+    }
+    .ing-item .filename { font-weight: 500; }
+    .ing-item .ing-meta { color: #888; font-size: 0.75rem; margin-top: 3px; }
+    .status-pending  { color: #e65100; font-weight: 600; }
+    .status-clean_ready { color: #2e7d32; font-weight: 600; }
+    .status-failed   { color: #c62828; font-weight: 600; }
+
+    .section-full {
+      grid-column: 1 / -1;
+    }
+
+    .refresh-btn {
+      background: none;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 4px 10px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      color: #555;
+      float: right;
+      margin-top: -2px;
+    }
+    .refresh-btn:hover { background: #f0f0f0; }
+
+    @media (max-width: 700px) {
+      .layout { grid-template-columns: 1fr; }
+      .section-full { grid-column: 1; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>ASFINT Data Platform</h1>
+  <span>local</span>
+</header>
+
+<div class="layout">
+
+  <!-- Register Dataset -->
+  <div class="card">
+    <h2>Register Dataset</h2>
+    <form id="register-form">
+      <label for="ds-name">Name</label>
+      <input type="text" id="ds-name" placeholder="e.g. q3-fr-2025" required />
+
+      <label for="ds-type">Process Type</label>
+      <select id="ds-type" required>
+        <option value="">Loading…</option>
+      </select>
+
+      <label for="ds-desc">Description (optional)</label>
+      <textarea id="ds-desc" placeholder="Brief description"></textarea>
+
+      <button type="submit">Register Dataset</button>
+      <div class="toast" id="register-toast"></div>
+    </form>
+  </div>
+
+  <!-- Upload Raw File -->
+  <div class="card">
+    <h2>Upload Raw File</h2>
+    <form id="upload-form">
+      <label for="upload-ds">Dataset</label>
+      <select id="upload-ds" required>
+        <option value="">Select a dataset…</option>
+      </select>
+
+      <label>File</label>
+      <div class="file-drop" id="file-drop">
+        <input type="file" id="file-input" />
+        <div class="icon">📂</div>
+        <p>Drop a file here or click to browse</p>
+        <div class="chosen" id="file-chosen"></div>
+      </div>
+
+      <button type="submit">Upload File</button>
+      <div class="toast" id="upload-toast"></div>
+    </form>
+  </div>
+
+  <!-- Datasets -->
+  <div class="card section-full">
+    <h2>
+      Registered Datasets
+      <button class="refresh-btn" onclick="loadDatasets()">Refresh</button>
+    </h2>
+    <div class="ds-list" id="ds-list"><div class="empty">No datasets yet.</div></div>
+  </div>
+
+  <!-- Ingestions -->
+  <div class="card section-full" id="ingestions-section" style="display:none">
+    <h2>
+      Ingestions — <span id="ing-ds-name"></span>
+      <button class="refresh-btn" onclick="loadIngestions(selectedDatasetId)">Refresh</button>
+    </h2>
+    <div id="ing-list"></div>
+  </div>
+
+</div>
+
+<script>
+  let processTypes = [];
+  let datasets = [];
+  let selectedDatasetId = null;
+
+  // ── Boot ─────────────────────────────────────────────────────────────────
+
+  async function boot() {
+    await Promise.all([loadProcessTypes(), loadDatasets()]);
+  }
+
+  // ── Process types ─────────────────────────────────────────────────────────
+
+  async function loadProcessTypes() {
+    try {
+      const res = await fetch('/api/v1/process-types');
+      const data = await res.json();
+      processTypes = data.process_types;
+      const sel = document.getElementById('ds-type');
+      sel.innerHTML = '<option value="">Select…</option>' +
+        processTypes.map(t => `<option value="${t}">${t}</option>`).join('');
+    } catch {
+      document.getElementById('ds-type').innerHTML = '<option value="">Failed to load</option>';
+    }
+  }
+
+  // ── Datasets ──────────────────────────────────────────────────────────────
+
+  async function loadDatasets() {
+    try {
+      const res = await fetch('/api/v1/datasets');
+      datasets = await res.json();
+      renderDatasets();
+      populateUploadSelect();
+    } catch {
+      document.getElementById('ds-list').innerHTML = '<div class="empty">Could not load datasets.</div>';
+    }
+  }
+
+  function renderDatasets() {
+    const el = document.getElementById('ds-list');
+    if (!datasets.length) {
+      el.innerHTML = '<div class="empty">No datasets yet.</div>';
+      return;
+    }
+    el.innerHTML = datasets.map(ds => `
+      <div class="ds-item ${ds.id === selectedDatasetId ? 'selected' : ''}"
+           onclick="selectDataset(${ds.id}, '${escHtml(ds.name)}')">
+        <div>
+          <div class="name">${escHtml(ds.name)}</div>
+          <div class="meta">${ds.description ? escHtml(ds.description) : 'No description'} · ${new Date(ds.created_at).toLocaleDateString()}</div>
+        </div>
+        <span class="badge">${ds.process_type}</span>
+      </div>
+    `).join('');
+  }
+
+  function populateUploadSelect() {
+    const sel = document.getElementById('upload-ds');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">Select a dataset…</option>' +
+      datasets.map(ds => `<option value="${ds.id}">${escHtml(ds.name)} (${ds.process_type})</option>`).join('');
+    if (current) sel.value = current;
+  }
+
+  function selectDataset(id, name) {
+    selectedDatasetId = id;
+    document.getElementById('upload-ds').value = id;
+    renderDatasets();
+    loadIngestions(id);
+  }
+
+  // ── Ingestions ────────────────────────────────────────────────────────────
+
+  async function loadIngestions(datasetId) {
+    const section = document.getElementById('ingestions-section');
+    section.style.display = 'block';
+    document.getElementById('ing-ds-name').textContent =
+      datasets.find(d => d.id === datasetId)?.name || datasetId;
+
+    try {
+      const res = await fetch(`/api/v1/datasets/${datasetId}/ingestions`);
+      const data = await res.json();
+      const el = document.getElementById('ing-list');
+      if (!data.items.length) {
+        el.innerHTML = '<div class="empty">No ingestions yet for this dataset.</div>';
+        return;
+      }
+      el.innerHTML = data.items.map(ing => `
+        <div class="ing-item">
+          <span class="filename">${escHtml(ing.original_filename)}</span>
+          <span class="ing-meta">
+            · <span class="status-${ing.status}">${ing.status}</span>
+            · ${ing.file_size_bytes != null ? formatBytes(ing.file_size_bytes) : '—'}
+            · sha256: ${ing.file_sha256 ? ing.file_sha256.slice(0,12) + '…' : '—'}
+            · ${new Date(ing.created_at).toLocaleString()}
+          </span>
+        </div>
+      `).join('');
+    } catch {
+      document.getElementById('ing-list').innerHTML = '<div class="empty">Could not load ingestions.</div>';
+    }
+  }
+
+  // ── Register form ─────────────────────────────────────────────────────────
+
+  document.getElementById('register-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button');
+    const toast = document.getElementById('register-toast');
+    btn.disabled = true;
+    toast.className = 'toast';
+
+    const body = {
+      name: document.getElementById('ds-name').value.trim(),
+      process_type: document.getElementById('ds-type').value,
+      description: document.getElementById('ds-desc').value.trim() || null,
+    };
+
+    try {
+      const res = await fetch('/api/v1/datasets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Unknown error');
+      toast.textContent = `Registered "${data.name}" (id ${data.id})`;
+      toast.className = 'toast success';
+      e.target.reset();
+      await loadDatasets();
+    } catch (err) {
+      toast.textContent = err.message;
+      toast.className = 'toast error';
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // ── Upload form ───────────────────────────────────────────────────────────
+
+  const fileDrop = document.getElementById('file-drop');
+  const fileInput = document.getElementById('file-input');
+  const fileChosen = document.getElementById('file-chosen');
+
+  fileDrop.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', () => {
+    fileChosen.textContent = fileInput.files[0]?.name || '';
+  });
+  fileDrop.addEventListener('dragover', e => { e.preventDefault(); fileDrop.classList.add('dragover'); });
+  fileDrop.addEventListener('dragleave', () => fileDrop.classList.remove('dragover'));
+  fileDrop.addEventListener('drop', e => {
+    e.preventDefault();
+    fileDrop.classList.remove('dragover');
+    if (e.dataTransfer.files[0]) {
+      fileInput.files = e.dataTransfer.files;
+      fileChosen.textContent = e.dataTransfer.files[0].name;
+    }
+  });
+
+  document.getElementById('upload-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button');
+    const toast = document.getElementById('upload-toast');
+    btn.disabled = true;
+    toast.className = 'toast';
+
+    const datasetId = document.getElementById('upload-ds').value;
+    const file = fileInput.files[0];
+
+    if (!datasetId) { showToast(toast, 'error', 'Select a dataset first.'); btn.disabled = false; return; }
+    if (!file)      { showToast(toast, 'error', 'Choose a file to upload.'); btn.disabled = false; return; }
+
+    const form = new FormData();
+    form.append('file', file);
+
+    try {
+      const res = await fetch(`/api/v1/datasets/${datasetId}/ingestions`, {
+        method: 'POST',
+        body: form,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Unknown error');
+      showToast(toast, 'success', `Ingestion #${data.id} created — status: ${data.status}`);
+      fileInput.value = '';
+      fileChosen.textContent = '';
+      if (selectedDatasetId === parseInt(datasetId)) loadIngestions(datasetId);
+    } catch (err) {
+      showToast(toast, 'error', err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  function showToast(el, type, msg) {
+    el.textContent = msg;
+    el.className = `toast ${type}`;
+  }
+
+  function escHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function formatBytes(n) {
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 ** 2) return `${(n/1024).toFixed(1)} KB`;
+    return `${(n/1024**2).toFixed(1)} MB`;
+  }
+
+  boot();
+</script>
+</body>
+</html>
