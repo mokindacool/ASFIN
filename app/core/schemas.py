@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -13,10 +13,14 @@ class DatasetCreate(BaseModel):
     name: str
     process_type: str
     description: Optional[str] = None
+    schema_def: Optional[List[Dict[str, Any]]] = None      # e.g. [{"name": "col", "dtype": "int"}]
+    validation_cfg: Optional[Dict[str, Any]] = None
 
 
 class DatasetUpdate(BaseModel):
     description: Optional[str] = None
+    schema_def: Optional[List[Dict[str, Any]]] = None
+    validation_cfg: Optional[Dict[str, Any]] = None
 
 
 class DatasetOut(BaseModel):
@@ -24,6 +28,8 @@ class DatasetOut(BaseModel):
     name: str
     process_type: str
     description: Optional[str]
+    schema_def: Optional[List[Dict[str, Any]]]
+    validation_cfg: Optional[Dict[str, Any]]
     created_at: datetime
     is_deleted: bool
 

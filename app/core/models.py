@@ -5,6 +5,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    JSON,
     String,
     Text,
 )
@@ -20,6 +21,8 @@ class Dataset(Base):
     name = Column(String, unique=True, nullable=False, index=True)
     process_type = Column(String, nullable=False)
     description = Column(String, nullable=True)
+    schema_def = Column(JSON, nullable=True)      # list of {name, dtype} column descriptors
+    validation_cfg = Column(JSON, nullable=True)  # per-validator config overrides
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     is_deleted = Column(Boolean, default=False, nullable=False)
 
@@ -67,8 +70,9 @@ class ValidationResult(Base):
     id = Column(Integer, primary_key=True, index=True)
     ingestion_id = Column(Integer, ForeignKey("ingestions.id"), nullable=False, index=True)
     check_name = Column(String, nullable=False)
-    status = Column(String, nullable=False)  # pass / fail
+    status = Column(String, nullable=False)  # pass / fail / warn / skipped
     severity = Column(String, nullable=False, default="error")  # error / warning / info
+    details = Column(JSON, nullable=True)    # machine-readable specifics (e.g. missing columns)
     message = Column(Text, nullable=True)
     ran_at = Column(DateTime(timezone=True), server_default=func.now())
 

@@ -33,6 +33,8 @@ class DatasetService:
             name=data.name,
             process_type=data.process_type.upper(),
             description=data.description,
+            schema_def=data.schema_def,
+            validation_cfg=data.validation_cfg,
         )
         self.db.add(dataset)
         self.db.commit()
@@ -61,6 +63,10 @@ class DatasetService:
         dataset = self.get(dataset_id)
         if data.description is not None:
             dataset.description = data.description
+        if data.schema_def is not None:
+            dataset.schema_def = data.schema_def
+        if data.validation_cfg is not None:
+            dataset.validation_cfg = data.validation_cfg
         self.db.commit()
         self.db.refresh(dataset)
         return dataset
