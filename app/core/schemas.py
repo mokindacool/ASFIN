@@ -62,3 +62,21 @@ class IngestionList(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# ---------------------------------------------------------------------------
+# Validation
+# ---------------------------------------------------------------------------
+
+
+class ValidationResultOut(BaseModel):
+    id: int
+    ingestion_id: int
+    check_name: str
+    status: str
+    severity: str
+    details: Optional[Dict[str, Any]]
+    message: Optional[str]
+    ran_at: datetime
+
+    model_config = {"from_attributes": True}

@@ -65,7 +65,7 @@ class ShapeValidator(BaseValidator):
         return ValidationResult(
             check_name=self.check_name,
             status="pass",
-            severity="error",
+            severity="info",
             details={
                 "row_count": row_count,
                 "max_null_fraction": max_null_fraction,

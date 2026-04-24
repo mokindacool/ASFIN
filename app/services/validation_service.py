@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import pandas as pd
-from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.models import Dataset, Ingestion, ValidationResult as ValidationResultModel
@@ -27,7 +26,7 @@ class ValidationService:
         )
 
         if not ingestion:
-            raise HTTPException(status_code=404, detail="Ingestion not found")
+            raise LookupError(f"Ingestion {ingestion_id} not found")
 
         dataset = (
             self.db.query(Dataset)
@@ -36,10 +35,10 @@ class ValidationService:
         )
 
         if not dataset:
-            raise HTTPException(status_code=404, detail="Dataset not found")
+            raise LookupError(f"Dataset {ingestion.dataset_id} not found")
 
         if not ingestion.raw_path:
-            raise HTTPException(status_code=400, detail="Ingestion has no raw_path")
+            raise ValueError("Ingestion has no raw_path")
 
         ingestion.status = "validating"
         ingestion.error_message = None
@@ -58,7 +57,7 @@ class ValidationService:
 
             results = [validator.run(df, config) for validator in self.validators]
 
-            self._replace_validation_results(ingestion.id, results)
+            self._stage_validation_results(ingestion.id, results)
 
             has_blocking_failure = any(
                 result.status == "fail" and result.severity == "error"
@@ -102,7 +101,7 @@ class ValidationService:
 
         raise ValueError(f"Unsupported validation file type: {ext}")
 
-    def _replace_validation_results(
+    def _stage_validation_results(
         self,
         ingestion_id: int,
         results: List[ValidationResult],
@@ -112,14 +111,11 @@ class ValidationService:
         ).delete()
 
         for result in results:
-            row = ValidationResultModel(
+            self.db.add(ValidationResultModel(
                 ingestion_id=ingestion_id,
                 check_name=result.check_name,
                 status=result.status,
                 severity=result.severity,
                 details=result.details,
                 message=result.message,
-            )
-            self.db.add(row)
-
-        self.db.commit()
+            ))

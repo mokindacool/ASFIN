@@ -79,7 +79,7 @@ class SchemaValidator(BaseValidator):
         return ValidationResult(
             check_name=self.check_name,
             status="pass",
-            severity="error",
+            severity="info",
             details={},
             message="All declared columns present and type-coercible.",
         )
