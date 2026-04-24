@@ -14,6 +14,7 @@ import hashlib
 from pathlib import Path
 
 import pytest
+import pandas as pd
 from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -282,11 +283,6 @@ def test_list_for_soft_deleted_dataset_returns_404(db, dataset):
     assert exc.value.status_code == 404
 
 
-# ---------------------------------------------------------------------------
-# preview() - Week 7 preview endpoint support
-# ---------------------------------------------------------------------------
-
-
 def test_preview_raw_csv_returns_row_objects(db, dataset):
     svc = IngestionService(db)
     created = run(svc.create(dataset.id, FakeUploadFile("report.csv", CSV_CONTENT)))
@@ -316,8 +312,6 @@ def test_preview_clean_reads_first_parquet_output(db, dataset, tmp_path):
     clean_dir.mkdir(parents=True, exist_ok=True)
     parquet_path = clean_dir / "preview.parquet"
     expected = [{"date": "2024-03-01", "amount": 300}, {"date": "2024-03-02", "amount": 400}]
-    import pandas as pd
-
     pd.DataFrame(expected).to_parquet(parquet_path, index=False)
     created.clean_path = str(clean_dir)
     db.commit()
