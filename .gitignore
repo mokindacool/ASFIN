@@ -28,6 +28,10 @@ htmlcov/
 credentials.json
 details.json
 
+# Logs
+logs/
+*.log
+
 # OS / editor
 .DS_Store
 .vscode/
