@@ -53,6 +53,7 @@ class Ingestion(Base):
     original_filename = Column(String, nullable=False)
     file_ext = Column(String, nullable=False)
     raw_path = Column(String, nullable=True)
+    raw_path_secondary = Column(String, nullable=True)   # RECONCILE: agenda file
     clean_path = Column(String, nullable=True)
     file_size_bytes = Column(BigInteger, nullable=True)
     file_sha256 = Column(String(64), nullable=True, index=True)

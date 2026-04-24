@@ -48,6 +48,7 @@ class IngestionOut(BaseModel):
     original_filename: str
     file_ext: str
     raw_path: Optional[str]
+    raw_path_secondary: Optional[str]
     file_size_bytes: Optional[int]
     file_sha256: Optional[str]
     error_message: Optional[str]

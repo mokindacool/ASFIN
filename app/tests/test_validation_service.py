@@ -49,11 +49,16 @@ def test_validation_passes_valid_file(db, tmp_path):
 
     db.refresh(ingestion)
     assert ingestion.status == "validated"
-    assert len(results) == 2
+    assert len(results) == 4  # schema, shape, drift, join
 
     saved = db.query(ValidationResult).filter(ValidationResult.ingestion_id == ingestion.id).all()
-    assert {r.check_name for r in saved} == {"schema", "shape"}
-    assert all(r.status == "pass" for r in saved)
+    assert {r.check_name for r in saved} == {"schema", "shape", "drift", "join"}
+    # schema and shape pass; drift and join skip (first upload, no join_key configured)
+    by_name = {r.check_name: r for r in saved}
+    assert by_name["schema"].status == "pass"
+    assert by_name["shape"].status == "pass"
+    assert by_name["drift"].status == "skipped"
+    assert by_name["join"].status == "skipped"
 
 
 def test_validation_fails_bad_shape(db, tmp_path):

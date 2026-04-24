@@ -7,6 +7,7 @@ from app.core import job_runner
 from app.core.database import SessionLocal, get_db
 from app.core.models import Ingestion, ValidationResult as ValidationResultModel
 from app.core.schemas import IngestionList, IngestionOut, ValidationResultOut
+from app.services.elt_service import ETLService
 from app.services.ingestion_service import IngestionService
 from app.services.validation_service import ValidationService
 
@@ -17,11 +18,20 @@ job_submit = job_runner.submit
 
 
 def _validate_ingestion(ingestion_id: int) -> None:
+    """
+    Background job: validate → ETL.
+    ValidationService and ETLService both persist status + error_message on failure,
+    so exceptions are swallowed here after the DB is updated.
+    """
     db = SessionLocal()
     try:
         ValidationService(db).run(ingestion_id)
+
+        ingestion = db.query(Ingestion).filter(Ingestion.id == ingestion_id).first()
+        if ingestion and ingestion.status == "validated":
+            ETLService(db).run(ingestion_id)
     except Exception:
-        pass  # ValidationService already persists status + error_message on failure
+        pass
     finally:
         db.close()
 
@@ -41,6 +51,38 @@ async def create_ingestion(
     Returns 409 if the identical file (same SHA-256) was already uploaded for this dataset.
     """
     ingestion = await IngestionService(db).create(dataset_id, file)
+    job_submit(_validate_ingestion, ingestion.id)
+    return ingestion
+
+
+@router.post(
+    "/api/v1/datasets/{dataset_id}/reconcile",
+    response_model=IngestionOut,
+    status_code=201,
+)
+async def create_reconcile_ingestion(
+    dataset_id: int,
+    fr_file: UploadFile = File(..., description="FR Cleaned CSV (*Cleaned*.csv)"),
+    agenda_file: UploadFile = File(..., description="Agenda CSV (*Agenda*.csv)"),
+    db: Session = Depends(get_db),
+):
+    """
+    Upload two files to start a RECONCILE pipeline run.
+    fr_file must contain 'Cleaned' in its filename; agenda_file must contain 'Agenda'.
+    Returns 400 if either naming convention is violated.
+    """
+    if "Cleaned" not in (fr_file.filename or ""):
+        raise HTTPException(
+            status_code=400,
+            detail="fr_file must have 'Cleaned' in its filename (e.g. 'FR 24_25 S2 Cleaned.csv').",
+        )
+    if "Agenda" not in (agenda_file.filename or ""):
+        raise HTTPException(
+            status_code=400,
+            detail="agenda_file must have 'Agenda' in its filename (e.g. '2024-11-04 Agenda.csv').",
+        )
+
+    ingestion = await IngestionService(db).create_reconcile(dataset_id, fr_file, agenda_file)
     job_submit(_validate_ingestion, ingestion.id)
     return ingestion
 

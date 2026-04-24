@@ -19,6 +19,11 @@ class StorageService:
         return DATA_ROOT / "raw" / str(dataset_id) / str(ingestion_id) / f"original{ext}"
 
     @staticmethod
+    def raw_path_secondary(dataset_id: int, ingestion_id: int, ext: str) -> Path:
+        """Canonical path for a secondary raw file (RECONCILE): /data/raw/{dataset_id}/{ingestion_id}/secondary.{ext}"""
+        return DATA_ROOT / "raw" / str(dataset_id) / str(ingestion_id) / f"secondary{ext}"
+
+    @staticmethod
     def clean_dir(dataset_id: int, ingestion_id: int) -> Path:
         """Canonical directory for Parquet clean output: /data/clean/{dataset_id}/{ingestion_id}/"""
         return DATA_ROOT / "clean" / str(dataset_id) / str(ingestion_id)
@@ -34,6 +39,11 @@ class StorageService:
         path = cls.clean_dir(dataset_id, ingestion_id)
         path.mkdir(parents=True, exist_ok=True)
         return path
+
+    @staticmethod
+    def staging_dir(ingestion_id: int) -> Path:
+        """Temporary staging area for a single pipeline run: /data/staging/{ingestion_id}/"""
+        return DATA_ROOT / "staging" / str(ingestion_id)
 
 
 # ---------------------------------------------------------------------------
