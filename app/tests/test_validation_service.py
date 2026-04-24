@@ -1,3 +1,15 @@
+"""
+Tests for ValidationService (Week 4):
+
+- Tests create temporary raw CSV files, insert matching Dataset and Ingestion rows into the test database,
+  and then call ValidationService.run().
+- The service loads the raw file, runs SchemaValidator and ShapeValidator, writes validation_results rows,
+  and updates the ingestion status.
+
+Run 'pytest app/tests/test_validation_service.py' in terminal from repo root after installing requirements
+- 'pip install requirements.txt' and 'pip install requirements.api.txt'
+"""
+
 import pytest
 import pandas as pd
 

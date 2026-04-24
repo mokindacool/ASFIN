@@ -78,6 +78,5 @@ class ValidationResultOut(BaseModel):
     severity: str
     details: Optional[Dict[str, Any]]
     message: Optional[str]
-    ran_at: datetime
 
     model_config = {"from_attributes": True}
