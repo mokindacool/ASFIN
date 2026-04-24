@@ -1,10 +1,38 @@
+# Python
 __pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment / secrets
+.env
+.env.*
 credentials.json
 details.json
-*DS_Store*
-*DS_Store*
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Project misc
 to-do.txt
-*egg*
 experiments/experimental_data/
-build/
-*build*
