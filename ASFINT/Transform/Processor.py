@@ -22,7 +22,6 @@ from ASFINT.Transform.ABSA_Processor import ABSA_Processor
 from ASFINT.Transform.Agenda_Processor import Agenda_Processor
 from ASFINT.Transform.OASIS_Processor import OASIS_Abridged
 from ASFINT.Transform.FR_Processor import FR_ProcessorV2
-from ASFINT.Transform.Reconciliation_Processor import Reconcile_FR_Agenda
 
 
 class ASUCProcessor:
@@ -42,7 +41,6 @@ class ASUCProcessor:
             "OASIS": self.oasis,
             "FR": self.fr,
             "CONTINGENCY": self.contingency,
-            "RECONCILE": self.reconcile,
         }
 
     # --------------------------
@@ -81,13 +79,6 @@ class ASUCProcessor:
                 "Raw Name Dependency": None,
                 "Clean File Name": "Agenda",
                 "Processing Function": Agenda_Processor,
-            },
-            "RECONCILE": {
-                "Clean Tag": "GF",
-                "Raw Tag": None,
-                "Raw Name Dependency": None,
-                "Clean File Name": "Reconciled",
-                "Processing Function": Reconcile_FR_Agenda,
             },
         }
         return ASUCProcessor.process_configs
@@ -150,7 +141,7 @@ class ASUCProcessor:
             except Exception as e:
                 self._log(f"Processing failed for {name}, processing function: {self.get_processing_func().__name__}) : {str(e)}", reporting)
                 raise e
-        return rv, names
+        return out_frames, out_names
     
     def contingency(self, txt_lst: Iterable[str], names: Iterable[str], reporting = False) -> list[pd.DataFrame]:
         """
@@ -232,7 +223,6 @@ class ASUCProcessor:
     def fr(self, dfs: Iterable[Tuple[pd.DataFrame, str]], names: Iterable[str], reporting: bool = False) -> Tuple[List[pd.DataFrame], List[str]]:
         dfs = list(dfs)
         names = list(names)
-        original_names = list(names)  # Store original names before cleaning
         names = self.name_clean(names=names, subst_name="FR", reporting=reporting)
 
         out_frames: List[pd.DataFrame] = []
@@ -246,10 +236,7 @@ class ASUCProcessor:
 
             try:
                 fn = self.get_processing_func()  # FR_ProcessorV2
-                # Pass the original filename so output can be "{original_name} Cleaned"
-                orig_name = original_names[idx] if idx < len(original_names) else None
-                # Use MM/DD/YYYY format to match Agenda processor output for reconciliation
-                produced: Dict[str, pd.DataFrame] = fn(df, txt, date_format="%m/%d/%Y", original_filename=orig_name)
+                produced: Dict[str, pd.DataFrame] = fn(df, txt, date_format="%Y-%m-%d")
                 for out_name, out_df in produced.items():
                     out_frames.append(out_df)
                     out_names.append(out_name)
@@ -263,92 +250,25 @@ class ASUCProcessor:
     # --------------------------
     # CONTINGENCY
     # --------------------------
-    def contingency(self, texts: Iterable[str], names: Iterable[str], reporting: bool = False) -> Tuple[List[pd.DataFrame], List[str]]:
-        texts = list(texts)
+    def contingency(self, dfs: Iterable[pd.DataFrame], names: Iterable[str], reporting: bool = False) -> Tuple[List[pd.DataFrame], List[str]]:
+        dfs = list(dfs)
         names = list(names)
-        original_names = list(names)  # Store original names before cleaning
         names = self.name_clean(names=names, subst_name="Agenda", reporting=reporting)
 
         out_frames: List[pd.DataFrame] = []
         out_names: List[str] = []
 
-        for idx, (text, name) in enumerate(zip(texts, names)):
-            assert isinstance(text, str), "expected a text string"
+        for df, name in zip(dfs, names):
+            assert isinstance(df, pd.DataFrame), "expected a pandas DataFrame"
             try:
                 fn = self.get_processing_func()
-                processed, date = fn(text)
+                processed = fn(df)
                 out_frames.append(processed)
-
-                # Extract date from original filename (e.g., "2024-11-04" or "2020-2-3")
-                orig_name = original_names[idx] if idx < len(original_names) else name
-                # Match YYYY-MM-DD or YYYY-M-D (with or without leading zeros)
-                date_match = re.search(r'(\d{4}-\d{1,2}-\d{1,2})', orig_name)
-                if date_match:
-                    file_date = date_match.group(1)
-                    output_name = f"{file_date} {self.get_file_naming()}"
-                else:
-                    output_name = self.get_file_naming()
-
-                out_names.append(output_name)
+                out_names.append(self.get_file_naming())
                 self._log(f"[CONTINGENCY] Processed '{name}' via {fn.__name__}", reporting)
             except Exception as e:
                 self._log(f"[CONTINGENCY] Failed '{name}': {e}", reporting)
                 raise
-        return out_frames, out_names
-
-    # --------------------------
-    # RECONCILE
-    # --------------------------
-    def reconcile(self, tuples: Iterable[Tuple[pd.DataFrame, pd.DataFrame, str]], names: Iterable[str], reporting: bool = False) -> Tuple[List[pd.DataFrame], List[str]]:
-        """
-        Reconcile FR and Agenda outputs.
-
-        Args:
-            tuples: Iterable of (fr_df, agenda_df, fr_filename) tuples
-            names: Iterable of file names (not used for reconcile, but required by interface)
-            reporting: Whether to print progress logs
-
-        Returns:
-            Tuple of (list of reconciled DataFrames, list of output names)
-        """
-        tuples = list(tuples)
-        names = list(names)
-
-        out_frames: List[pd.DataFrame] = []
-        out_names: List[str] = []
-
-        for idx, triplet in enumerate(tuples):
-            if not isinstance(triplet, (tuple, list)) or len(triplet) != 3:
-                raise ValueError(f"[RECONCILE] Expected (fr_df, agenda_df, fr_filename) tuple at index {idx}")
-
-            fr_df, agenda_df, fr_filename = triplet
-
-            if not isinstance(fr_df, pd.DataFrame):
-                raise ValueError(f"[RECONCILE] Expected pandas DataFrame for FR at index {idx}, got {type(fr_df)}")
-            if not isinstance(agenda_df, pd.DataFrame):
-                raise ValueError(f"[RECONCILE] Expected pandas DataFrame for Agenda at index {idx}, got {type(agenda_df)}")
-
-            try:
-                fn = self.get_processing_func()
-                reconciled = fn(fr_df, agenda_df)
-                out_frames.append(reconciled)
-
-                # Generate output name based on FR filename
-                # Replace "Cleaned" with "Finalized"
-                # Example: "FR 24_25 S2 Cleaned" -> "FR 24_25 S2 Finalized"
-                if "Cleaned" in fr_filename:
-                    output_name = fr_filename.replace("Cleaned", "Finalized")
-                else:
-                    # Fallback: append "Finalized" if "Cleaned" not found
-                    output_name = f"{fr_filename} Finalized"
-
-                out_names.append(output_name)
-                self._log(f"[RECONCILE] Reconciled FR and Agenda data via {fn.__name__}", reporting)
-                self._log(f"[RECONCILE] Output name: {output_name}", reporting)
-            except Exception as e:
-                self._log(f"[RECONCILE] Failed reconciliation: {e}", reporting)
-                raise
-
         return out_frames, out_names
 
     # --------------------------

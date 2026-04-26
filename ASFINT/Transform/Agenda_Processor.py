@@ -6,8 +6,8 @@ from datetime import datetime
 from ASFINT.Utility.Cleaning import in_df, is_type
 from ASFINT.Utility.Utils import column_converter
 
-def _find_chunk_pattern(starts, ends, end_prepattern = '\d+\s'):
-      """
+def _find_chunk_pattern(starts, ends, end_prepattern = r'\d+\s'):
+      r"""
       Extracts a chunk of text from 'inpt' text based on start and end keywords.
       starts (list[str]): List of keywords to start the chunk of text we want to extract
       ends (list[str]): List of keywords to end the chunk of text we want to extract
@@ -33,7 +33,7 @@ def _find_chunk_pattern(starts, ends, end_prepattern = '\d+\s'):
             pattern += start_keyword + '|'
          pattern += starts[-1] + ')'
       
-      pattern += '\s*?([\s\S]*?)(?:' # make sure to have the '*?' to do non-greedy matching
+      pattern += r'\s*?([\s\S]*?)(?:' # make sure to have the '*?' to do non-greedy matching
 
       if len(ends) == 1:
          pattern += ends[0]
@@ -346,7 +346,7 @@ def Agenda_Processor(inpt: str,
             print(f"chunk: {chunk}")
 
             valid_name_chars = r'\w\s\-\_\*\&\%\$\+\#\@\!\(\)\,\'\"\[\]\.:' #seems to perform better with explicit handling for special characters? eg. for 'Telegraph+' we add the plus sign so regex will pick it up. Added \[\] for brackets and \. for periods in names like "Inc."
-            club_name_pattern = f'\d+\s(?!Motion|Seconded)([{valid_name_chars}]+?)(?=\n)' #matches numbered items that are club names (not Motion/Seconded), capturing until newline
+            club_name_pattern = rf'\d+\s(?!Motion|Seconded)([{valid_name_chars}]+?)(?=\n)' #matches numbered items that are club names (not Motion/Seconded), capturing until newline
             club_names = list(re.findall(club_name_pattern, chunk)) #just matches club names --> list of tuples of club names
             if debug:
                print(f"Agenda Processor Club Names: {club_names}")
