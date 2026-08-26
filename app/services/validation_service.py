@@ -42,7 +42,9 @@ class ValidationService:
             raise LookupError(f"Dataset {ingestion.dataset_id} not found")
 
         if not ingestion.raw_path:
-            raise ValueError("Ingestion has no raw_path")
+            raise ValueError(
+                "Ingestion has no raw_path — RECONCILE ingestions skip validation automatically"
+            )
 
         ingestion.status = "validating"
         ingestion.error_message = None

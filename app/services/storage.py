@@ -3,7 +3,7 @@ from pathlib import Path
 
 from fastapi import UploadFile
 
-DATA_ROOT = Path(os.getenv("DATA_ROOT", "/data"))
+DATA_ROOT = Path(os.getenv("DATA_ROOT", str(Path(__file__).parents[2] / "data")))
 
 
 class StorageService:

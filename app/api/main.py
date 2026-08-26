@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routers import datasets, ingestions, process_types
+from app.api.routers import datasets, ingestions, process_types, publish
 from app.core.database import check_connection, engine
 from app.core.models import Base
 
@@ -23,6 +23,7 @@ app = FastAPI(title="ASFINT Data Platform", lifespan=lifespan)
 app.include_router(datasets.router)
 app.include_router(ingestions.router)
 app.include_router(process_types.router)
+app.include_router(publish.router)
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 

@@ -51,11 +51,30 @@ class IngestionOut(BaseModel):
     raw_path_secondary: Optional[str]
     file_size_bytes: Optional[int]
     file_sha256: Optional[str]
+    row_count_raw: Optional[int]
+    row_count_clean: Optional[int]
+    fr_ingestion_id: Optional[int]
+    agenda_ingestion_id: Optional[int]
     error_message: Optional[str]
     created_at: datetime
     completed_at: Optional[datetime]
 
     model_config = {"from_attributes": True}
+
+
+class ReconcileCreate(BaseModel):
+    fr_ingestion_id: int
+    agenda_ingestion_id: int
+
+
+class ReadyIngestionOut(BaseModel):
+    id: int
+    dataset_id: int
+    dataset_name: str
+    process_type: str
+    original_filename: str
+    row_count_clean: Optional[int]
+    completed_at: Optional[datetime]
 
 
 class IngestionList(BaseModel):
@@ -78,5 +97,31 @@ class ValidationResultOut(BaseModel):
     severity: str
     details: Optional[Dict[str, Any]]
     message: Optional[str]
+
+    model_config = {"from_attributes": True}
+
+
+# ---------------------------------------------------------------------------
+# Publish
+# ---------------------------------------------------------------------------
+
+
+class PublishResponse(BaseModel):
+    version: int
+    table_name: str
+    row_count: int
+
+
+class PublishedVersionOut(BaseModel):
+    id: int
+    dataset_id: int
+    ingestion_id: int
+    version_number: int
+    table_name: Optional[str]
+    row_count: Optional[int]
+    file_sha256: Optional[str]
+    published_at: datetime
+    published_by: Optional[str]
+    is_latest: bool
 
     model_config = {"from_attributes": True}

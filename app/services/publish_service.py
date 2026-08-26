@@ -124,6 +124,7 @@ class PublishService:
             dataset_id=dataset.id,
             ingestion_id=ingestion.id,
             version_number=next_version,
+            table_name=table_name,
             row_count=row_count,
             file_sha256=ingestion.file_sha256,
             published_by=published_by,

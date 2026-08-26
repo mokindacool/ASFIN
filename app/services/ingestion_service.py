@@ -1,7 +1,7 @@
 import hashlib
 from pathlib import Path
 
-from fastapi import HTTPException, UploadFile
+from fastapi import HTTPException, UploadFile  # UploadFile used by create()
 from sqlalchemy.orm import Session
 
 from app.core.models import Dataset, Ingestion
@@ -26,12 +26,13 @@ class IngestionService:
         content = await file.read()
         sha256 = hashlib.sha256(content).hexdigest()
 
-        # 3. Idempotency check — reject if this exact file was already ingested
+        # 3. Idempotency check — reject if this exact file was already successfully ingested
         duplicate = (
             self.db.query(Ingestion)
             .filter(
                 Ingestion.dataset_id == dataset_id,
                 Ingestion.file_sha256 == sha256,
+                Ingestion.raw_path.isnot(None),
             )
             .first()
         )
@@ -68,8 +69,8 @@ class IngestionService:
 
         return ingestion
 
-    async def create_reconcile(
-        self, dataset_id: int, fr_file: UploadFile, agenda_file: UploadFile
+    def create_reconcile(
+        self, dataset_id: int, fr_ingestion_id: int, agenda_ingestion_id: int
     ) -> Ingestion:
         dataset = (
             self.db.query(Dataset)
@@ -79,54 +80,50 @@ class IngestionService:
         if not dataset:
             raise HTTPException(status_code=404, detail="Dataset not found")
 
-        fr_content = await fr_file.read()
-        agenda_content = await agenda_file.read()
+        fr_ing = self.db.query(Ingestion).filter(Ingestion.id == fr_ingestion_id).first()
+        if not fr_ing:
+            raise HTTPException(status_code=404, detail=f"FR ingestion {fr_ingestion_id} not found")
+        if fr_ing.status != "clean_ready":
+            raise HTTPException(
+                status_code=409,
+                detail=f"FR ingestion {fr_ingestion_id} is not clean_ready (status={fr_ing.status})",
+            )
 
-        sha256 = hashlib.sha256(fr_content).hexdigest()
+        agenda_ing = self.db.query(Ingestion).filter(Ingestion.id == agenda_ingestion_id).first()
+        if not agenda_ing:
+            raise HTTPException(status_code=404, detail=f"Agenda ingestion {agenda_ingestion_id} not found")
+        if agenda_ing.status != "clean_ready":
+            raise HTTPException(
+                status_code=409,
+                detail=f"Agenda ingestion {agenda_ingestion_id} is not clean_ready (status={agenda_ing.status})",
+            )
 
         duplicate = (
             self.db.query(Ingestion)
             .filter(
                 Ingestion.dataset_id == dataset_id,
-                Ingestion.file_sha256 == sha256,
+                Ingestion.fr_ingestion_id == fr_ingestion_id,
+                Ingestion.agenda_ingestion_id == agenda_ingestion_id,
             )
             .first()
         )
         if duplicate:
             raise HTTPException(
                 status_code=409,
-                detail=f"Duplicate file: ingestion {duplicate.id} already has this content (sha256={sha256[:12]}…)",
+                detail=f"Reconcile ingestion #{duplicate.id} already exists for this FR + Agenda combination",
             )
-
-        fr_filename = fr_file.filename or "upload"
-        fr_ext = Path(fr_filename).suffix.lower() or ".bin"
-        agenda_filename = agenda_file.filename or "agenda"
-        agenda_ext = Path(agenda_filename).suffix.lower() or ".bin"
 
         ingestion = Ingestion(
             dataset_id=dataset_id,
             status="pending",
-            original_filename=fr_filename,
-            file_ext=fr_ext,
-            file_size_bytes=len(fr_content),
-            file_sha256=sha256,
+            original_filename=f"{fr_ing.original_filename} + {agenda_ing.original_filename}",
+            file_ext=".csv",
+            fr_ingestion_id=fr_ingestion_id,
+            agenda_ingestion_id=agenda_ingestion_id,
         )
         self.db.add(ingestion)
         self.db.commit()
         self.db.refresh(ingestion)
-
-        StorageService.ensure_raw_dir(dataset_id, ingestion.id)
-        raw_path = StorageService.raw_path(dataset_id, ingestion.id, fr_ext)
-        raw_path.write_bytes(fr_content)
-
-        secondary_path = StorageService.raw_path_secondary(dataset_id, ingestion.id, agenda_ext)
-        secondary_path.write_bytes(agenda_content)
-
-        ingestion.raw_path = str(raw_path)
-        ingestion.raw_path_secondary = str(secondary_path)
-        self.db.commit()
-        self.db.refresh(ingestion)
-
         return ingestion
 
     def get(self, ingestion_id: int) -> Ingestion:

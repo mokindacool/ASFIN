@@ -111,10 +111,10 @@ def pull_reconcile(path, process_type):
     if not p.is_dir():
         raise ValueError(f"Reconcile process requires a directory path, got file: {p}")
 
-    # Find FR file (contains "Cleaned" in filename)
-    fr_files = list(p.glob("*Cleaned*.csv"))
+    # Find FR file (contains "Cleaned" or "clean" in filename, case-insensitive)
+    fr_files = [f for f in p.glob("*.csv") if "clean" in f.name.lower() and "agenda" not in f.name.lower()]
     if not fr_files:
-        raise FileNotFoundError(f"No FR file found in {p}. Expected file with 'Cleaned' in name.")
+        raise FileNotFoundError(f"No FR file found in {p}. Expected file with 'clean' or 'Cleaned' in name.")
 
     # Find Agenda file (contains "Agenda" in filename)
     agenda_files = list(p.glob("*Agenda*.csv"))

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.models import Dataset, Ingestion
 from app.services.storage import StorageService
 from ASFINT.Config.Config import get_pFuncs
+from ASFINT.Transform.Reconciliation_Processor import Reconcile_FR_Agenda
 
 
 class ETLService:
@@ -32,6 +33,10 @@ class ETLService:
         )
         if not dataset:
             raise LookupError(f"Dataset {ingestion.dataset_id} not found")
+
+        if dataset.process_type == "RECONCILE":
+            self._run_reconcile(ingestion, dataset)
+            return
 
         if not ingestion.raw_path:
             raise ValueError("Ingestion has no raw_path")
@@ -86,6 +91,60 @@ class ETLService:
 
         finally:
             shutil.rmtree(staging_dir, ignore_errors=True)
+
+    def _run_reconcile(self, ingestion: Ingestion, dataset: Dataset) -> None:
+        ingestion.status = "processing"
+        ingestion.error_message = None
+        self.db.commit()
+
+        try:
+            fr_ing = (
+                self.db.query(Ingestion)
+                .filter(Ingestion.id == ingestion.fr_ingestion_id)
+                .first()
+            )
+            agenda_ing = (
+                self.db.query(Ingestion)
+                .filter(Ingestion.id == ingestion.agenda_ingestion_id)
+                .first()
+            )
+
+            if not fr_ing or not fr_ing.clean_path:
+                raise ValueError(f"FR ingestion #{ingestion.fr_ingestion_id} has no clean output")
+            if not agenda_ing or not agenda_ing.clean_path:
+                raise ValueError(f"Agenda ingestion #{ingestion.agenda_ingestion_id} has no clean output")
+
+            fr_df = self._read_clean_parquet(fr_ing.clean_path)
+            agenda_df = self._read_clean_parquet(agenda_ing.clean_path)
+
+            result_df = Reconcile_FR_Agenda(fr_df, agenda_df)
+
+            clean_dir = StorageService.ensure_clean_dir(dataset.id, ingestion.id)
+            parquet_path = clean_dir / "reconciled.parquet"
+            result_df.to_parquet(parquet_path, index=False)
+
+            ingestion.clean_path = str(parquet_path)
+            ingestion.row_count_clean = len(result_df)
+            ingestion.status = "clean_ready"
+            ingestion.completed_at = datetime.now(timezone.utc)
+            self.db.commit()
+
+        except Exception as exc:
+            ingestion.status = "failed"
+            ingestion.error_message = str(exc)
+            ingestion.completed_at = datetime.now(timezone.utc)
+            self.db.commit()
+            raise
+
+    @staticmethod
+    def _read_clean_parquet(clean_path: str) -> pd.DataFrame:
+        path = Path(clean_path)
+        if path.is_file():
+            return pd.read_parquet(path)
+        parquet_files = sorted(path.glob("*.parquet"))
+        if not parquet_files:
+            raise FileNotFoundError(f"No parquet files found in {path}")
+        return pd.read_parquet(parquet_files[0])
 
     def _build_inputs(
         self,
